@@ -1,0 +1,21 @@
+# Configuração de exemplo do backend.
+#
+# Copie para config.yaml (que está no .gitignore) e ajuste:
+#   cp config.example.yaml config.yaml
+#
+# Toda chave aqui tem um equivalente em variável de ambiente com o prefixo FB_
+# e "." trocado por "_", e em flag de linha de comando. A precedência é:
+#   flag > variável de ambiente > este arquivo > default
+#
+# Nenhum segredo real entra neste arquivo — ele é versionado.
+
+# Endereço de escuta do servidor.
+#   env:  FB_ADDRESS
+#   flag: --address
+address: "localhost:8080"
+
+# Origem do frontend. É a base do link público de um formulário publicado,
+# então precisa apontar para onde o navegador realmente acessa a aplicação.
+#   env:  FB_PUBLIC_BASE_URL
+#   flag: --public-base-url
+public_base_url: "http://localhost:5173"

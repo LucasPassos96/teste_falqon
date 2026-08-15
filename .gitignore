@@ -1,1 +1,32 @@
-.claude
+# Configuração real (só o config.example.yaml é versionado)
+config.yaml
+config.yml
+config.local.yaml
+
+# Banco SQLite e arquivos auxiliares do WAL
+*.db
+*.db-wal
+*.db-shm
+
+# Binários compilados
+/bin/
+/server
+/server.exe
+backend/server
+backend/server.exe
+
+# Node
+node_modules/
+frontend/dist/
+*.local
+
+# Material de trabalho local (enunciado do desafio e documento de desenho).
+# Não pertence ao repositório entregue.
+.claude/
+
+# Editores / SO
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

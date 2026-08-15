@@ -1,0 +1,21 @@
+# O projeto precisa rodar igual em Windows, macOS e Linux. Sem isto, quem
+# clona no Windows recebe CRLF e o diff de quem trabalha no Linux fica poluído
+# de mudanças que não existem.
+* text=auto eol=lf
+
+# Arquivos onde o final de linha é semanticamente relevante.
+*.sh   text eol=lf
+*.go   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+
+# Scripts de linha de comando do Windows precisam de CRLF.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Nunca normalizar binários.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.pdf  binary
+*.db   binary
