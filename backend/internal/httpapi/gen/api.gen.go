@@ -14,11 +14,61 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for FieldType.
+const (
+	Checkbox  FieldType = "checkbox"
+	Email     FieldType = "email"
+	LongText  FieldType = "long_text"
+	Number    FieldType = "number"
+	Select    FieldType = "select"
+	ShortText FieldType = "short_text"
+)
+
+// Valid indicates whether the value is a known member of the FieldType enum.
+func (e FieldType) Valid() bool {
+	switch e {
+	case Checkbox:
+		return true
+	case Email:
+		return true
+	case LongText:
+		return true
+	case Number:
+		return true
+	case Select:
+		return true
+	case ShortText:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FormStatus.
+const (
+	Draft     FormStatus = "draft"
+	Published FormStatus = "published"
+)
+
+// Valid indicates whether the value is a known member of the FormStatus enum.
+func (e FormStatus) Valid() bool {
+	switch e {
+	case Draft:
+		return true
+	case Published:
+		return true
+	default:
+		return false
+	}
+}
 
 // Error defines model for Error.
 type Error struct {
@@ -26,6 +76,61 @@ type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
+
+// Field defines model for Field.
+type Field struct {
+	Config   *FieldConfig       `json:"config,omitempty"`
+	HelpText *string            `json:"help_text,omitempty"`
+	Id       openapi_types.UUID `json:"id"`
+	Label    string             `json:"label"`
+	Position int                `json:"position"`
+	Required bool               `json:"required"`
+	Type     FieldType          `json:"type"`
+}
+
+// FieldConfig defines model for FieldConfig.
+type FieldConfig struct {
+	Max       *float64       `json:"max,omitempty"`
+	MaxLength *int           `json:"max_length,omitempty"`
+	Min       *float64       `json:"min,omitempty"`
+	MinLength *int           `json:"min_length,omitempty"`
+	Options   *[]FieldOption `json:"options,omitempty"`
+}
+
+// FieldInput defines model for FieldInput.
+type FieldInput struct {
+	Config   *FieldConfig `json:"config,omitempty"`
+	HelpText *string      `json:"help_text,omitempty"`
+	Label    string       `json:"label"`
+	Required bool         `json:"required"`
+	Type     FieldType    `json:"type"`
+}
+
+// FieldOption defines model for FieldOption.
+type FieldOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// FieldType defines model for FieldType.
+type FieldType string
+
+// Form defines model for Form.
+type Form struct {
+	CreatedAt       time.Time          `json:"created_at"`
+	Description     string             `json:"description"`
+	Fields          *[]Field           `json:"fields,omitempty"`
+	Id              openapi_types.UUID `json:"id"`
+	PublicSlug      *string            `json:"public_slug,omitempty"`
+	PublicUrl       *string            `json:"public_url,omitempty"`
+	Status          FormStatus         `json:"status"`
+	SubmissionCount int                `json:"submission_count"`
+	Title           string             `json:"title"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+// FormStatus defines model for FormStatus.
+type FormStatus string
 
 // Health defines model for Health.
 type Health struct {
@@ -54,6 +159,9 @@ type ValidationError struct {
 // Conflict defines model for Conflict.
 type Conflict = Error
 
+// NotFound defines model for NotFound.
+type NotFound = Error
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
@@ -73,11 +181,35 @@ type RegisterJSONBody struct {
 	Password string              `json:"password"`
 }
 
+// CreateFormJSONBody defines parameters for CreateForm.
+type CreateFormJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Title       string  `json:"title"`
+}
+
+// UpdateFormJSONBody defines parameters for UpdateForm.
+type UpdateFormJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Title       *string `json:"title,omitempty"`
+}
+
+// ReplaceFormFieldsJSONBody defines parameters for ReplaceFormFields.
+type ReplaceFormFieldsJSONBody = []FieldInput
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody LoginJSONBody
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody RegisterJSONBody
+
+// CreateFormJSONRequestBody defines body for CreateForm for application/json ContentType.
+type CreateFormJSONRequestBody CreateFormJSONBody
+
+// UpdateFormJSONRequestBody defines body for UpdateForm for application/json ContentType.
+type UpdateFormJSONRequestBody UpdateFormJSONBody
+
+// ReplaceFormFieldsJSONRequestBody defines body for ReplaceFormFields for application/json ContentType.
+type ReplaceFormFieldsJSONRequestBody = ReplaceFormFieldsJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -93,6 +225,30 @@ type ServerInterface interface {
 	// Register Cria uma conta com e-mail e senha
 	// (POST /auth/register)
 	Register(w http.ResponseWriter, r *http.Request)
+	// ListForms Lista os formulários do usuário
+	// (GET /forms)
+	ListForms(w http.ResponseWriter, r *http.Request)
+	// CreateForm Cria um formulário (nasce em draft)
+	// (POST /forms)
+	CreateForm(w http.ResponseWriter, r *http.Request)
+	// DeleteForm Remove o formulário e tudo que depende dele
+	// (DELETE /forms/{formId})
+	DeleteForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// GetForm Detalhe do formulário, com os campos
+	// (GET /forms/{formId})
+	GetForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// UpdateForm Altera título e descrição
+	// (PATCH /forms/{formId})
+	UpdateForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// ReplaceFormFields Substitui a lista inteira de campos
+	// (PUT /forms/{formId}/fields)
+	ReplaceFormFields(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// PublishForm Publica e devolve a URL pública
+	// (POST /forms/{formId}/publish)
+	PublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// UnpublishForm Volta o formulário para draft
+	// (POST /forms/{formId}/unpublish)
+	UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
 	// GetHealth Verifica se a API está no ar
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -123,6 +279,54 @@ func (_ Unimplemented) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 // Register Cria uma conta com e-mail e senha
 // (POST /auth/register)
 func (_ Unimplemented) Register(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListForms Lista os formulários do usuário
+// (GET /forms)
+func (_ Unimplemented) ListForms(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateForm Cria um formulário (nasce em draft)
+// (POST /forms)
+func (_ Unimplemented) CreateForm(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteForm Remove o formulário e tudo que depende dele
+// (DELETE /forms/{formId})
+func (_ Unimplemented) DeleteForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetForm Detalhe do formulário, com os campos
+// (GET /forms/{formId})
+func (_ Unimplemented) GetForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateForm Altera título e descrição
+// (PATCH /forms/{formId})
+func (_ Unimplemented) UpdateForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ReplaceFormFields Substitui a lista inteira de campos
+// (PUT /forms/{formId}/fields)
+func (_ Unimplemented) ReplaceFormFields(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PublishForm Publica e devolve a URL pública
+// (POST /forms/{formId}/publish)
+func (_ Unimplemented) PublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UnpublishForm Volta o formulário para draft
+// (POST /forms/{formId}/unpublish)
+func (_ Unimplemented) UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -188,6 +392,190 @@ func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Register(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListForms operation middleware
+func (siw *ServerInterfaceWrapper) ListForms(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListForms(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateForm operation middleware
+func (siw *ServerInterfaceWrapper) CreateForm(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateForm(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteForm operation middleware
+func (siw *ServerInterfaceWrapper) DeleteForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteForm(w, r, formId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetForm operation middleware
+func (siw *ServerInterfaceWrapper) GetForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetForm(w, r, formId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateForm operation middleware
+func (siw *ServerInterfaceWrapper) UpdateForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateForm(w, r, formId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceFormFields operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceFormFields(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceFormFields(w, r, formId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishForm operation middleware
+func (siw *ServerInterfaceWrapper) PublishForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishForm(w, r, formId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnpublishForm operation middleware
+func (siw *ServerInterfaceWrapper) UnpublishForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnpublishForm(w, r, formId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -339,11 +727,37 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/forms", wrapper.ListForms)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/forms", wrapper.CreateForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/forms/{formId}", wrapper.DeleteForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/forms/{formId}", wrapper.GetForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/forms/{formId}", wrapper.UpdateForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/forms/{formId}/fields", wrapper.ReplaceFormFields)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/forms/{formId}/publish", wrapper.PublishForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/forms/{formId}/unpublish", wrapper.UnpublishForm)
+	})
 
 	return r
 }
 
 type ConflictJSONResponse Error
+
+type NotFoundJSONResponse Error
 
 type UnauthorizedJSONResponse Error
 
@@ -527,6 +941,443 @@ func (response Register422JSONResponse) VisitRegisterResponse(w http.ResponseWri
 	return err
 }
 
+type ListFormsRequestObject struct {
+}
+
+type ListFormsResponseObject interface {
+	VisitListFormsResponse(w http.ResponseWriter) error
+}
+
+type ListForms200JSONResponse []Form
+
+func (response ListForms200JSONResponse) VisitListFormsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListForms401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListForms401JSONResponse) VisitListFormsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFormRequestObject struct {
+	Body *CreateFormJSONRequestBody
+}
+
+type CreateFormResponseObject interface {
+	VisitCreateFormResponse(w http.ResponseWriter) error
+}
+
+type CreateForm201JSONResponse Form
+
+func (response CreateForm201JSONResponse) VisitCreateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateForm401JSONResponse) VisitCreateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateForm422JSONResponse struct{ ValidationFailedJSONResponse }
+
+func (response CreateForm422JSONResponse) VisitCreateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFormRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+}
+
+type DeleteFormResponseObject interface {
+	VisitDeleteFormResponse(w http.ResponseWriter) error
+}
+
+type DeleteForm204Response struct {
+}
+
+func (response DeleteForm204Response) VisitDeleteFormResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteForm401JSONResponse) VisitDeleteFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteForm404JSONResponse) VisitDeleteFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFormRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+}
+
+type GetFormResponseObject interface {
+	VisitGetFormResponse(w http.ResponseWriter) error
+}
+
+type GetForm200JSONResponse Form
+
+func (response GetForm200JSONResponse) VisitGetFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetForm401JSONResponse) VisitGetFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetForm404JSONResponse) VisitGetFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFormRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+	Body   *UpdateFormJSONRequestBody
+}
+
+type UpdateFormResponseObject interface {
+	VisitUpdateFormResponse(w http.ResponseWriter) error
+}
+
+type UpdateForm200JSONResponse Form
+
+func (response UpdateForm200JSONResponse) VisitUpdateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateForm401JSONResponse) VisitUpdateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateForm404JSONResponse) VisitUpdateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateForm422JSONResponse struct{ ValidationFailedJSONResponse }
+
+func (response UpdateForm422JSONResponse) VisitUpdateFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceFormFieldsRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+	Body   *ReplaceFormFieldsJSONRequestBody
+}
+
+type ReplaceFormFieldsResponseObject interface {
+	VisitReplaceFormFieldsResponse(w http.ResponseWriter) error
+}
+
+type ReplaceFormFields200JSONResponse []Field
+
+func (response ReplaceFormFields200JSONResponse) VisitReplaceFormFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceFormFields401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReplaceFormFields401JSONResponse) VisitReplaceFormFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceFormFields404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReplaceFormFields404JSONResponse) VisitReplaceFormFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceFormFields409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ReplaceFormFields409JSONResponse) VisitReplaceFormFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReplaceFormFields422JSONResponse struct{ ValidationFailedJSONResponse }
+
+func (response ReplaceFormFields422JSONResponse) VisitReplaceFormFieldsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishFormRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+}
+
+type PublishFormResponseObject interface {
+	VisitPublishFormResponse(w http.ResponseWriter) error
+}
+
+type PublishForm200JSONResponse Form
+
+func (response PublishForm200JSONResponse) VisitPublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PublishForm401JSONResponse) VisitPublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PublishForm404JSONResponse) VisitPublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishForm409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PublishForm409JSONResponse) VisitPublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnpublishFormRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+}
+
+type UnpublishFormResponseObject interface {
+	VisitUnpublishFormResponse(w http.ResponseWriter) error
+}
+
+type UnpublishForm200JSONResponse Form
+
+func (response UnpublishForm200JSONResponse) VisitUnpublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnpublishForm401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UnpublishForm401JSONResponse) VisitUnpublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnpublishForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnpublishForm404JSONResponse) VisitUnpublishFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthRequestObject struct {
 }
 
@@ -562,6 +1413,30 @@ type StrictServerInterface interface {
 	// Register Cria uma conta com e-mail e senha
 	// (POST /auth/register)
 	Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error)
+	// ListForms Lista os formulários do usuário
+	// (GET /forms)
+	ListForms(ctx context.Context, request ListFormsRequestObject) (ListFormsResponseObject, error)
+	// CreateForm Cria um formulário (nasce em draft)
+	// (POST /forms)
+	CreateForm(ctx context.Context, request CreateFormRequestObject) (CreateFormResponseObject, error)
+	// DeleteForm Remove o formulário e tudo que depende dele
+	// (DELETE /forms/{formId})
+	DeleteForm(ctx context.Context, request DeleteFormRequestObject) (DeleteFormResponseObject, error)
+	// GetForm Detalhe do formulário, com os campos
+	// (GET /forms/{formId})
+	GetForm(ctx context.Context, request GetFormRequestObject) (GetFormResponseObject, error)
+	// UpdateForm Altera título e descrição
+	// (PATCH /forms/{formId})
+	UpdateForm(ctx context.Context, request UpdateFormRequestObject) (UpdateFormResponseObject, error)
+	// ReplaceFormFields Substitui a lista inteira de campos
+	// (PUT /forms/{formId}/fields)
+	ReplaceFormFields(ctx context.Context, request ReplaceFormFieldsRequestObject) (ReplaceFormFieldsResponseObject, error)
+	// PublishForm Publica e devolve a URL pública
+	// (POST /forms/{formId}/publish)
+	PublishForm(ctx context.Context, request PublishFormRequestObject) (PublishFormResponseObject, error)
+	// UnpublishForm Volta o formulário para draft
+	// (POST /forms/{formId}/unpublish)
+	UnpublishForm(ctx context.Context, request UnpublishFormRequestObject) (UnpublishFormResponseObject, error)
 	// GetHealth Verifica se a API está no ar
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -716,6 +1591,231 @@ func (sh *strictHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListForms operation middleware
+func (sh *strictHandler) ListForms(w http.ResponseWriter, r *http.Request) {
+	var request ListFormsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListForms(ctx, request.(ListFormsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListForms")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFormsResponseObject); ok {
+		if err := validResponse.VisitListFormsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateForm operation middleware
+func (sh *strictHandler) CreateForm(w http.ResponseWriter, r *http.Request) {
+	var request CreateFormRequestObject
+
+	var body CreateFormJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateForm(ctx, request.(CreateFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateFormResponseObject); ok {
+		if err := validResponse.VisitCreateFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteForm operation middleware
+func (sh *strictHandler) DeleteForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request DeleteFormRequestObject
+
+	request.FormId = formId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteForm(ctx, request.(DeleteFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFormResponseObject); ok {
+		if err := validResponse.VisitDeleteFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetForm operation middleware
+func (sh *strictHandler) GetForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request GetFormRequestObject
+
+	request.FormId = formId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetForm(ctx, request.(GetFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFormResponseObject); ok {
+		if err := validResponse.VisitGetFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateForm operation middleware
+func (sh *strictHandler) UpdateForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request UpdateFormRequestObject
+
+	request.FormId = formId
+
+	var body UpdateFormJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateForm(ctx, request.(UpdateFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateFormResponseObject); ok {
+		if err := validResponse.VisitUpdateFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceFormFields operation middleware
+func (sh *strictHandler) ReplaceFormFields(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request ReplaceFormFieldsRequestObject
+
+	request.FormId = formId
+
+	var body ReplaceFormFieldsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceFormFields(ctx, request.(ReplaceFormFieldsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceFormFields")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceFormFieldsResponseObject); ok {
+		if err := validResponse.VisitReplaceFormFieldsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishForm operation middleware
+func (sh *strictHandler) PublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request PublishFormRequestObject
+
+	request.FormId = formId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishForm(ctx, request.(PublishFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishFormResponseObject); ok {
+		if err := validResponse.VisitPublishFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnpublishForm operation middleware
+func (sh *strictHandler) UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
+	var request UnpublishFormRequestObject
+
+	request.FormId = formId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnpublishForm(ctx, request.(UnpublishFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnpublishForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnpublishFormResponseObject); ok {
+		if err := validResponse.VisitUnpublishFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealth operation middleware
 func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthRequestObject
@@ -745,24 +1845,40 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"zFfNbhs3EH4Vgu1RkWQnQNvtKTGcHySAg7r2xTac6XIkMd7lMEOuGtXQwxg9FH0OvVgxXGm9klZxktpN",
-	"LzZF8ps/fvORe61zKj05dDHo7FozBk8uYPpxQG5U2DzKOCcX0aUheF/YHKIlN3gfyMlcyCdYgoy+Zxzp",
-	"TH83uDU8qFfD4JCZWM/n8542GHK2XozoTB95ZFj8tfiTlJM/Hrm00RpQjhSGCIYUxAoKZUgx5hUH0vOe",
-	"PnFQxQmx/QPNw0d5jCFIdFAFdBEVVcq66eKmsAYkmlOQkWx+Dra4x4huDe+M7S3MCgLTBERa9iwNiP0a",
-	"mV1rz+SRo63POCeD8h8/QukL1Jm2biruLnNGgy5aKILu6TjzshgiWzeWZEsMAcYJu7E272nGD5VlqcBZ",
-	"7eF2/0Vji357j3kUWy8RijjZDi5EiFVYD4+utqPZ8LiEdXk6CdhRBCzBFjIYEZcQdbac6UjbmrV9VWVN",
-	"1zYH5WeUJmFXrhKkK+bN0/+MM5w2kMtRTcWOGEcWC3OJYjOZsRHLsG09bevI5QsoUJv4NAeWE8AMs3/D",
-	"r428tl1JW4iC2Dg7lvZY1ZCuLD6tahpaaal6anUymQ4YgjTbbazevsZZ3Y3WjUiQ6115QC4yRFIG1NO3",
-	"r0S9nhOX6lllC4PcP3fn7jBEVMAfKjsltfhbgRqJZghkimzAYKZIBeSpNcTqBSlUpPLCoovq15nH4+Tw",
-	"3CVtGiODoaBAeeBoWRkssK9OkdW7COFKjdEhQ8R3/fOUio2JMe2wJFTd01PkUKex1x/2h3Io5NGBtzrT",
-	"j/vD/mPd0x7iJBVwIEo8KGhsk7B5Ckn0hEmJiK+MzvSbtFyfH4b4jMzsi0Tyq9vWQwi/E5u76bQy0SA6",
-	"GLQGiVxhmmjdnPvD4b2Jf5KsDsV/Woltm4Ohn5XBkXWJF4m0yqAK9W2le3qCYLDu8WOMjw5qXneQdQOq",
-	"Xsboj1wx071WrJvlk8ieDPd2pdHUZbB2WQtof/9u0Nad2u5fnZ1d9HSoyhJ41i6JyqlU+EiOUkk6bgIJ",
-	"2JCUqvhJlsr61pk+2Vmzwpb+v6j0vJ3tocuRGRQ0ViQMcIYaHrSSru+jMXbk+wLjQcWMLiaufQMuH73W",
-	"X8eitYKchGpxwzap7aok6dXYKgPj2Ia4fAR0nv4vqx3fQKZWz4YSPr5BN5bLaG9/2NOldc3vO9StBf1h",
-	"fw35413vpuS9d18KuPfgrJHbFVTOFgz8DyTwp7vJ23xRPYj8HbAFVZWifqkwOzRw0ry2d6nB8j3+gEKw",
-	"9NB1raWHEoa4uFG1e4Nu9TmzI/FTZDsS2Q+ooIV3pGDJnBZ0/bF3djEXW8jTxI+za11xoTM9AG8H0z09",
-	"v5j/EwAA//8=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

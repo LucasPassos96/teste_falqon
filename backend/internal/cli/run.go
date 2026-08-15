@@ -8,6 +8,7 @@ import (
 
 	"github.com/LucasPassos96/teste_falqon/backend/internal/auth"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/config"
+	"github.com/LucasPassos96/teste_falqon/backend/internal/forms"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/storage/sqlite"
 )
@@ -55,7 +56,9 @@ func newRunCmd() *cobra.Command {
 				auth.NewTokenIssuer(cfg.Auth.JWTSecret, cfg.Auth.SessionTTL),
 			)
 
-			return httpapi.Run(cmd.Context(), cfg, authSvc, logger)
+			formSvc := forms.NewService(sqlite.NewFormRepo(db), cfg.PublicBaseURL)
+
+			return httpapi.Run(cmd.Context(), cfg, authSvc, formSvc, logger)
 		},
 	}
 

@@ -143,6 +143,212 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # ---------- ÁREA ADMINISTRATIVA ----------
+  # Todas exigem sessão (herdam o `security` global) e toda consulta filtra
+  # por dono. Recurso de outro usuário responde 404, não 403: 403 significa
+  # "existe, mas não é seu", o que já é informação.
+
+  /forms:
+    get:
+      operationId: listForms
+      summary: Lista os formulários do usuário
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createForm
+      summary: Cria um formulário (nasce em draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+
+  /forms/{formId}:
+    parameters:
+      - name: formId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getForm
+      summary: Detalhe do formulário, com os campos
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateForm
+      summary: Altera título e descrição
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    delete:
+      operationId: deleteForm
+      summary: Remove o formulário e tudo que depende dele
+      responses:
+        "204":
+          description: Removido
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /forms/{formId}/fields:
+    parameters:
+      - name: formId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: replaceFormFields
+      summary: Substitui a lista inteira de campos
+      description: |
+        O array recebido é a verdade: o índice de cada item vira a posição.
+
+        Só permitido em draft. Num formulário publicado responde 409 — editar a
+        estrutura com respostas existentes deixaria resposta órfã, invalidaria
+        respostas antigas retroativamente ou mudaria o tipo de um valor já
+        gravado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 50
+              items:
+                $ref: "#/components/schemas/FieldInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Field"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+
+  /forms/{formId}/publish:
+    parameters:
+      - name: formId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: publishForm
+      summary: Publica e devolve a URL pública
+      responses:
+        "200":
+          description: Publicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /forms/{formId}/unpublish:
+    parameters:
+      - name: formId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: unpublishForm
+      summary: Volta o formulário para draft
+      responses:
+        "200":
+          description: Despublicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Form"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -153,6 +359,12 @@ components:
   responses:
     Unauthorized:
       description: Sessão ausente ou inválida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Recurso não encontrado
       content:
         application/json:
           schema:
@@ -208,6 +420,137 @@ components:
                 type: string
               message:
                 type: string
+
+    FieldType:
+      type: string
+      enum: [short_text, long_text, email, number, select, checkbox]
+
+    FieldOption:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 200
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    # Config achatada: todas as regras num objeto só, todas opcionais. Qual
+    # combinação é válida depende do `type` e é checada no Go.
+    #
+    # A alternativa seria `oneOf` com discriminador, mais preciso no papel: os
+    # geradores dos dois lados produzem união discriminada que em Go vira
+    # json.RawMessage com métodos de conversão, e em TS exige narrowing em todo
+    # lugar. Custo alto de ergonomia para ganho baixo, já que a regra "select
+    # precisa de options" precisa existir no Go de qualquer forma.
+    FieldConfig:
+      type: object
+      properties:
+        min_length:
+          type: integer
+          minimum: 0
+          maximum: 10000
+        max_length:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        # format: double para o gerador produzir float64. Sem ele, o padrão
+        # de `type: number` vira float32 nos dois lados, e a faixa de um campo
+        # numérico perderia precisão em silêncio.
+        min:
+          type: number
+          format: double
+        max:
+          type: number
+          format: double
+        options:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/FieldOption"
+
+    Field:
+      type: object
+      required: [id, type, label, required, position]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/FieldType"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        help_text:
+          type: string
+          maxLength: 500
+        required:
+          type: boolean
+        position:
+          type: integer
+          minimum: 0
+        config:
+          $ref: "#/components/schemas/FieldConfig"
+
+    # O que o builder envia: sem id e sem position, porque a posição é o
+    # índice no array e o id é gerado no servidor.
+    FieldInput:
+      type: object
+      required: [type, label, required]
+      properties:
+        type:
+          $ref: "#/components/schemas/FieldType"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        help_text:
+          type: string
+          maxLength: 500
+        required:
+          type: boolean
+        config:
+          $ref: "#/components/schemas/FieldConfig"
+
+    FormStatus:
+      type: string
+      enum: [draft, published]
+
+    Form:
+      type: object
+      required: [id, title, description, status, submission_count, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/FormStatus"
+        public_slug:
+          type: string
+          nullable: true
+        public_url:
+          type: string
+          nullable: true
+        submission_count:
+          type: integer
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/Field"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     User:
       type: object

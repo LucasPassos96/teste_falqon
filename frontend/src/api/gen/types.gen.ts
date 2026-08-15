@@ -22,6 +22,54 @@ export type ValidationError = {
     }>;
 };
 
+export type FieldType = 'short_text' | 'long_text' | 'email' | 'number' | 'select' | 'checkbox';
+
+export type FieldOption = {
+    value: string;
+    label: string;
+};
+
+export type FieldConfig = {
+    min_length?: number;
+    max_length?: number;
+    min?: number;
+    max?: number;
+    options?: Array<FieldOption>;
+};
+
+export type Field = {
+    id: string;
+    type: FieldType;
+    label: string;
+    help_text?: string;
+    required: boolean;
+    position: number;
+    config?: FieldConfig;
+};
+
+export type FieldInput = {
+    type: FieldType;
+    label: string;
+    help_text?: string;
+    required: boolean;
+    config?: FieldConfig;
+};
+
+export type FormStatus = 'draft' | 'published';
+
+export type Form = {
+    id: string;
+    title: string;
+    description: string;
+    status: FormStatus;
+    public_slug?: string | null;
+    public_url?: string | null;
+    submission_count: number;
+    fields?: Array<Field>;
+    created_at: string;
+    updated_at: string;
+};
+
 export type User = {
     id: string;
     email: string;
@@ -149,3 +197,265 @@ export type GetCurrentUserResponses = {
 };
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
+
+export type ListFormsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/forms';
+};
+
+export type ListFormsErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+};
+
+export type ListFormsError = ListFormsErrors[keyof ListFormsErrors];
+
+export type ListFormsResponses = {
+    /**
+     * OK
+     */
+    200: Array<Form>;
+};
+
+export type ListFormsResponse = ListFormsResponses[keyof ListFormsResponses];
+
+export type CreateFormData = {
+    body: {
+        title: string;
+        description?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/forms';
+};
+
+export type CreateFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type CreateFormError = CreateFormErrors[keyof CreateFormErrors];
+
+export type CreateFormResponses = {
+    /**
+     * Criado
+     */
+    201: Form;
+};
+
+export type CreateFormResponse = CreateFormResponses[keyof CreateFormResponses];
+
+export type DeleteFormData = {
+    body?: never;
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}';
+};
+
+export type DeleteFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+};
+
+export type DeleteFormError = DeleteFormErrors[keyof DeleteFormErrors];
+
+export type DeleteFormResponses = {
+    /**
+     * Removido
+     */
+    204: void;
+};
+
+export type DeleteFormResponse = DeleteFormResponses[keyof DeleteFormResponses];
+
+export type GetFormData = {
+    body?: never;
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}';
+};
+
+export type GetFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+};
+
+export type GetFormError = GetFormErrors[keyof GetFormErrors];
+
+export type GetFormResponses = {
+    /**
+     * OK
+     */
+    200: Form;
+};
+
+export type GetFormResponse = GetFormResponses[keyof GetFormResponses];
+
+export type UpdateFormData = {
+    body: {
+        title?: string;
+        description?: string;
+    };
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}';
+};
+
+export type UpdateFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type UpdateFormError = UpdateFormErrors[keyof UpdateFormErrors];
+
+export type UpdateFormResponses = {
+    /**
+     * OK
+     */
+    200: Form;
+};
+
+export type UpdateFormResponse = UpdateFormResponses[keyof UpdateFormResponses];
+
+export type ReplaceFormFieldsData = {
+    body: Array<FieldInput>;
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}/fields';
+};
+
+export type ReplaceFormFieldsErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+    /**
+     * Operação não permitida no estado atual do recurso
+     */
+    409: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type ReplaceFormFieldsError = ReplaceFormFieldsErrors[keyof ReplaceFormFieldsErrors];
+
+export type ReplaceFormFieldsResponses = {
+    /**
+     * OK
+     */
+    200: Array<Field>;
+};
+
+export type ReplaceFormFieldsResponse = ReplaceFormFieldsResponses[keyof ReplaceFormFieldsResponses];
+
+export type PublishFormData = {
+    body?: never;
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}/publish';
+};
+
+export type PublishFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+    /**
+     * Operação não permitida no estado atual do recurso
+     */
+    409: Error;
+};
+
+export type PublishFormError = PublishFormErrors[keyof PublishFormErrors];
+
+export type PublishFormResponses = {
+    /**
+     * Publicado
+     */
+    200: Form;
+};
+
+export type PublishFormResponse = PublishFormResponses[keyof PublishFormResponses];
+
+export type UnpublishFormData = {
+    body?: never;
+    path: {
+        formId: string;
+    };
+    query?: never;
+    url: '/forms/{formId}/unpublish';
+};
+
+export type UnpublishFormErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+};
+
+export type UnpublishFormError = UnpublishFormErrors[keyof UnpublishFormErrors];
+
+export type UnpublishFormResponses = {
+    /**
+     * Despublicado
+     */
+    200: Form;
+};
+
+export type UnpublishFormResponse = UnpublishFormResponses[keyof UnpublishFormResponses];

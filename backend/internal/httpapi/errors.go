@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/LucasPassos96/teste_falqon/backend/internal/auth"
+	"github.com/LucasPassos96/teste_falqon/backend/internal/forms"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
@@ -111,6 +112,29 @@ func classify(err error) (status int, code, message, field string) {
 
 	case errors.Is(err, auth.ErrNameRequired):
 		return http.StatusUnprocessableEntity, "validation_failed", "Nome é obrigatório", "name"
+
+	// 404 e não 403 para formulário de outro usuário: 403 significa "existe,
+	// mas não é seu", o que já é informação. O repositório devolve o mesmo
+	// erro para inexistente e para alheio, então nem o handler consegue
+	// distinguir os dois.
+	case errors.Is(err, forms.ErrFormNotFound):
+		return http.StatusNotFound, "form_not_found", "Formulário não encontrado", ""
+
+	case errors.Is(err, forms.ErrFormPublished):
+		return http.StatusConflict, "form_published",
+			"Despublique o formulário para alterar os campos", ""
+
+	case errors.Is(err, forms.ErrNoFields):
+		return http.StatusConflict, "form_without_fields",
+			"Adicione ao menos um campo antes de publicar", ""
+
+	case errors.Is(err, forms.ErrTitleRequired):
+		return http.StatusUnprocessableEntity, "validation_failed", "Título é obrigatório", "title"
+
+	case errors.Is(err, forms.ErrInvalidField),
+		errors.Is(err, forms.ErrTooManyFields),
+		errors.Is(err, forms.ErrFieldsRequired):
+		return http.StatusUnprocessableEntity, "validation_failed", err.Error(), "fields"
 
 	default:
 		return http.StatusInternalServerError, "internal_error", "Erro interno", ""

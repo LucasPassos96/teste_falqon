@@ -326,6 +326,84 @@ não recuperar dado privado depois do logout.
 
 ---
 
+## Formulários
+
+Um formulário nasce em `draft`, ganha campos, e ao ser publicado recebe um slug
+que vira a URL pública.
+
+```bash
+curl -b j.txt -X POST localhost:8080/api/v1/forms \
+  -H 'Content-Type: application/json' -d '{"title":"Inscrição"}'
+
+curl -b j.txt -X PUT localhost:8080/api/v1/forms/{id}/fields \
+  -H 'Content-Type: application/json' \
+  -d '[{"type":"short_text","label":"Nome","required":true}]'
+
+curl -b j.txt -X POST localhost:8080/api/v1/forms/{id}/publish
+# → {"status":"published","public_slug":"Zx1NDYCs07tU",
+#    "public_url":"http://localhost:5173/f/Zx1NDYCs07tU"}
+```
+
+Seis tipos de campo: `short_text`, `long_text`, `email`, `number`, `select` e
+`checkbox`.
+
+### As decisões, e o porquê de cada uma
+
+**A defesa contra IDOR está na assinatura do repositório, não na disciplina do
+handler.** Não existe `GetForm(ctx, formID)` — só `GetOwnedBy(ctx, formID,
+ownerID)`, cuja query carrega `WHERE id = ? AND user_id = ?`. IDOR (trocar o ID
+na URL e ler o dado de outra pessoa) é a falha mais comum nesse tipo de
+aplicação, e acontece porque alguém esqueceu um `if` num handler entre vinte.
+Se o método não pode ser chamado sem o dono, não há o que esquecer: o
+compilador vira o revisor. O `ownerID` vem do cookie assinado, via context,
+nunca do payload.
+
+**404, não 403.** 403 significa "existe, mas não é seu", o que já é informação.
+O repositório devolve o mesmo erro para inexistente e para alheio, então nem o
+handler consegue distinguir os dois casos.
+
+**`PUT /fields` substitui a lista inteira, em vez de CRUD por campo.** O
+builder é uma unidade de edição, não uma sequência de operações: o usuário
+reordena, renomeia, remove e só então salva. Com CRUD granular seria preciso
+sincronizar a cada interação ou manter um diff. Aqui o array recebido *é* a
+verdade e o índice é a posição — quatro endpoints a menos. Server-side é uma
+transação de delete + insert, e a transação é o que impede um erro no meio de
+deixar o formulário sem campo nenhum. Custo: os IDs dos campos mudam a cada
+save, o que é irrelevante porque só é permitido em draft.
+
+**A estrutura trava depois de publicar** (`PUT /fields` responde 409). Editar
+campos com respostas existentes gera três problemas: campo removido deixa
+resposta órfã, campo novo obrigatório invalida respostas antigas
+retroativamente, e tipo alterado deixa `"abc"` num campo que virou numérico.
+Uma checagem de status elimina os três. A solução correta seria versionar a
+definição (`form_versions`), com a submissão apontando para a versão que o
+visitante realmente viu — está na lista de limitações.
+
+**O slug é gerado uma vez e preservado ao despublicar e republicar.**
+Regenerar mataria todo link já distribuído: quem despublicasse para corrigir um
+rótulo descobriria, tarde, que o link enviado para trezentas pessoas parou de
+funcionar. São 12 caracteres base62 (~71 bits) de `crypto/rand` — e é
+`crypto/rand` e não `math/rand` porque o segundo é determinístico, e a partir de
+alguns slugs observados dá para prever todos os outros.
+
+**Sem `UNIQUE(form_id, position)`, só um índice.** Constraint única em posição
+transforma qualquer reordenação num quebra-cabeça de updates temporários, e o
+SQLite não tem constraint deferida prática. A ordenação é reescrita inteira a
+cada save.
+
+**`config` como uma coluna JSON.** Regras que só existem para certos tipos
+(`options` de select, `min_length` de texto, `min`/`max` de número) ficam num
+JSON único, validado na entrada — então o banco nunca guarda config inválida, e
+config incoerente com o tipo é descartada. A alternativa era uma coluna por
+regra (tabela esparsa e cheia de NULL) ou uma tabela separada (mais joins).
+
+**Tetos explícitos:** 50 campos por formulário, 100 opções por select, 200
+caracteres de rótulo. Contados em *runes*, não bytes: `len("ação")` em Go
+devolve 5, não 4, e um limite implementado com `len` recusaria texto
+perfeitamente válido em português.
+
+---
+
 ## Decisões de arquitetura
 
 Registradas aqui conforme são tomadas, com o porquê e a alternativa descartada.

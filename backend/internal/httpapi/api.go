@@ -8,6 +8,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/LucasPassos96/teste_falqon/backend/internal/auth"
+	"github.com/LucasPassos96/teste_falqon/backend/internal/forms"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
@@ -15,7 +16,8 @@ import (
 // operationId da spec vira um método aqui, e o código não compila enquanto
 // faltar algum.
 type API struct {
-	auth *auth.Service
+	auth  *auth.Service
+	forms *forms.Service
 	// publicBaseURL decide se o cookie sai com Secure e, adiante, monta o link
 	// público do formulário.
 	publicBaseURL string

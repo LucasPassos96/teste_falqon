@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { getCurrentUser, getHealth, login, logout, type Options, register } from '../sdk.gen';
-import type { GetCurrentUserData, GetCurrentUserError, GetCurrentUserResponse, GetHealthData, GetHealthResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, RegisterData, RegisterError, RegisterResponse } from '../types.gen';
+import { createForm, deleteForm, getCurrentUser, getForm, getHealth, listForms, login, logout, type Options, publishForm, register, replaceFormFields, unpublishForm, updateForm } from '../sdk.gen';
+import type { CreateFormData, CreateFormError, CreateFormResponse, DeleteFormData, DeleteFormError, DeleteFormResponse, GetCurrentUserData, GetCurrentUserError, GetCurrentUserResponse, GetFormData, GetFormError, GetFormResponse, GetHealthData, GetHealthResponse, ListFormsData, ListFormsError, ListFormsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, PublishFormData, PublishFormError, PublishFormResponse, RegisterData, RegisterError, RegisterResponse, ReplaceFormFieldsData, ReplaceFormFieldsError, ReplaceFormFieldsResponse, UnpublishFormData, UnpublishFormError, UnpublishFormResponse, UpdateFormData, UpdateFormError, UpdateFormResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -125,3 +125,149 @@ export const getCurrentUserOptions = (options?: Options<GetCurrentUserData>) => 
     },
     queryKey: getCurrentUserQueryKey(options)
 });
+
+export const listFormsQueryKey = (options?: Options<ListFormsData>) => createQueryKey('listForms', options);
+
+/**
+ * Lista os formulários do usuário
+ */
+export const listFormsOptions = (options?: Options<ListFormsData>) => queryOptions<ListFormsResponse, ListFormsError, ListFormsResponse, ReturnType<typeof listFormsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listForms({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listFormsQueryKey(options)
+});
+
+/**
+ * Cria um formulário (nasce em draft)
+ */
+export const createFormMutation = (options?: Partial<Options<CreateFormData>>): UseMutationOptions<CreateFormResponse, CreateFormError, Options<CreateFormData>> => {
+    const mutationOptions: UseMutationOptions<CreateFormResponse, CreateFormError, Options<CreateFormData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createForm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remove o formulário e tudo que depende dele
+ */
+export const deleteFormMutation = (options?: Partial<Options<DeleteFormData>>): UseMutationOptions<DeleteFormResponse, DeleteFormError, Options<DeleteFormData>> => {
+    const mutationOptions: UseMutationOptions<DeleteFormResponse, DeleteFormError, Options<DeleteFormData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteForm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getFormQueryKey = (options: Options<GetFormData>) => createQueryKey('getForm', options);
+
+/**
+ * Detalhe do formulário, com os campos
+ */
+export const getFormOptions = (options: Options<GetFormData>) => queryOptions<GetFormResponse, GetFormError, GetFormResponse, ReturnType<typeof getFormQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getForm({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getFormQueryKey(options)
+});
+
+/**
+ * Altera título e descrição
+ */
+export const updateFormMutation = (options?: Partial<Options<UpdateFormData>>): UseMutationOptions<UpdateFormResponse, UpdateFormError, Options<UpdateFormData>> => {
+    const mutationOptions: UseMutationOptions<UpdateFormResponse, UpdateFormError, Options<UpdateFormData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateForm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Substitui a lista inteira de campos
+ *
+ * O array recebido é a verdade: o índice de cada item vira a posição.
+ *
+ * Só permitido em draft. Num formulário publicado responde 409 — editar a
+ * estrutura com respostas existentes deixaria resposta órfã, invalidaria
+ * respostas antigas retroativamente ou mudaria o tipo de um valor já
+ * gravado.
+ *
+ */
+export const replaceFormFieldsMutation = (options?: Partial<Options<ReplaceFormFieldsData>>): UseMutationOptions<ReplaceFormFieldsResponse, ReplaceFormFieldsError, Options<ReplaceFormFieldsData>> => {
+    const mutationOptions: UseMutationOptions<ReplaceFormFieldsResponse, ReplaceFormFieldsError, Options<ReplaceFormFieldsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await replaceFormFields({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Publica e devolve a URL pública
+ */
+export const publishFormMutation = (options?: Partial<Options<PublishFormData>>): UseMutationOptions<PublishFormResponse, PublishFormError, Options<PublishFormData>> => {
+    const mutationOptions: UseMutationOptions<PublishFormResponse, PublishFormError, Options<PublishFormData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await publishForm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Volta o formulário para draft
+ */
+export const unpublishFormMutation = (options?: Partial<Options<UnpublishFormData>>): UseMutationOptions<UnpublishFormResponse, UnpublishFormError, Options<UnpublishFormData>> => {
+    const mutationOptions: UseMutationOptions<UnpublishFormResponse, UnpublishFormError, Options<UnpublishFormData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await unpublishForm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetHealthData, GetHealthResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, RegisterData, RegisterErrors, RegisterResponses } from './types.gen';
+import type { CreateFormData, CreateFormErrors, CreateFormResponses, DeleteFormData, DeleteFormErrors, DeleteFormResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetFormData, GetFormErrors, GetFormResponses, GetHealthData, GetHealthResponses, ListFormsData, ListFormsErrors, ListFormsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PublishFormData, PublishFormErrors, PublishFormResponses, RegisterData, RegisterErrors, RegisterResponses, ReplaceFormFieldsData, ReplaceFormFieldsErrors, ReplaceFormFieldsResponses, UnpublishFormData, UnpublishFormErrors, UnpublishFormResponses, UpdateFormData, UpdateFormErrors, UpdateFormResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -70,5 +70,129 @@ export const getCurrentUser = <ThrowOnError extends boolean = false>(options?: O
             type: 'apiKey'
         }],
     url: '/auth/me',
+    ...options
+});
+
+/**
+ * Lista os formulários do usuário
+ */
+export const listForms = <ThrowOnError extends boolean = false>(options?: Options<ListFormsData, ThrowOnError>) => (options?.client ?? client).get<ListFormsResponses, ListFormsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms',
+    ...options
+});
+
+/**
+ * Cria um formulário (nasce em draft)
+ */
+export const createForm = <ThrowOnError extends boolean = false>(options: Options<CreateFormData, ThrowOnError>) => (options.client ?? client).post<CreateFormResponses, CreateFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove o formulário e tudo que depende dele
+ */
+export const deleteForm = <ThrowOnError extends boolean = false>(options: Options<DeleteFormData, ThrowOnError>) => (options.client ?? client).delete<DeleteFormResponses, DeleteFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}',
+    ...options
+});
+
+/**
+ * Detalhe do formulário, com os campos
+ */
+export const getForm = <ThrowOnError extends boolean = false>(options: Options<GetFormData, ThrowOnError>) => (options.client ?? client).get<GetFormResponses, GetFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}',
+    ...options
+});
+
+/**
+ * Altera título e descrição
+ */
+export const updateForm = <ThrowOnError extends boolean = false>(options: Options<UpdateFormData, ThrowOnError>) => (options.client ?? client).patch<UpdateFormResponses, UpdateFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Substitui a lista inteira de campos
+ *
+ * O array recebido é a verdade: o índice de cada item vira a posição.
+ *
+ * Só permitido em draft. Num formulário publicado responde 409 — editar a
+ * estrutura com respostas existentes deixaria resposta órfã, invalidaria
+ * respostas antigas retroativamente ou mudaria o tipo de um valor já
+ * gravado.
+ *
+ */
+export const replaceFormFields = <ThrowOnError extends boolean = false>(options: Options<ReplaceFormFieldsData, ThrowOnError>) => (options.client ?? client).put<ReplaceFormFieldsResponses, ReplaceFormFieldsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}/fields',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Publica e devolve a URL pública
+ */
+export const publishForm = <ThrowOnError extends boolean = false>(options: Options<PublishFormData, ThrowOnError>) => (options.client ?? client).post<PublishFormResponses, PublishFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}/publish',
+    ...options
+});
+
+/**
+ * Volta o formulário para draft
+ */
+export const unpublishForm = <ThrowOnError extends boolean = false>(options: Options<UnpublishFormData, ThrowOnError>) => (options.client ?? client).post<UnpublishFormResponses, UnpublishFormErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}/unpublish',
     ...options
 });
