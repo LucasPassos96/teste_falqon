@@ -24,6 +24,7 @@ func NewRootCmd() *cobra.Command {
 		"caminho do arquivo de configuração (por padrão procura ./config.yaml)")
 
 	root.AddCommand(newRunCmd())
+	root.AddCommand(newMigrateCmd())
 
 	return root
 }

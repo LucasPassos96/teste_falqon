@@ -18,12 +18,18 @@ type Config struct {
 	Address string `mapstructure:"address"`
 	// PublicBaseURL é a origem do frontend, usada para montar o link público
 	// de um formulário publicado.
-	PublicBaseURL string `mapstructure:"public_base_url"`
+	PublicBaseURL string   `mapstructure:"public_base_url"`
+	Database      Database `mapstructure:"database"`
+}
+
+type Database struct {
+	Path string `mapstructure:"path"`
 }
 
 var defaults = map[string]any{
 	"address":         "localhost:8080",
 	"public_base_url": "http://localhost:5173",
+	"database.path":   "./formbuilder.db",
 }
 
 // flagFor mapeia chave de config para nome de flag: snake_case no YAML,
@@ -31,6 +37,7 @@ var defaults = map[string]any{
 var flagFor = map[string]string{
 	"address":         "address",
 	"public_base_url": "public-base-url",
+	"database.path":   "db-path",
 }
 
 // RegisterFlags declara as flags de configuração. Os defaults ficam no mapa
@@ -38,6 +45,7 @@ var flagFor = map[string]string{
 func RegisterFlags(fs *pflag.FlagSet) {
 	fs.String("address", "", `endereço de escuta (default "localhost:8080")`)
 	fs.String("public-base-url", "", `URL base do frontend (default "http://localhost:5173")`)
+	fs.String("db-path", "", `caminho do arquivo SQLite (default "./formbuilder.db")`)
 }
 
 func Load(path string, fs *pflag.FlagSet) (*Config, error) {
@@ -107,6 +115,9 @@ func (c *Config) Validate() error {
 	u, err := url.Parse(c.PublicBaseURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("public_base_url precisa ser uma URL absoluta (ex.: http://localhost:5173), recebi %q", c.PublicBaseURL)
+	}
+	if strings.TrimSpace(c.Database.Path) == "" {
+		return errors.New("database.path é obrigatório")
 	}
 	return nil
 }

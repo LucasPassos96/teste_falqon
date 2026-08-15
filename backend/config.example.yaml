@@ -19,3 +19,10 @@ address: "localhost:8080"
 #   env:  FB_PUBLIC_BASE_URL
 #   flag: --public-base-url
 public_base_url: "http://localhost:5173"
+
+database:
+  # Arquivo SQLite. Criado no primeiro boot, junto com o schema.
+  # Chave aninhada: o "." vira "_" na variável de ambiente.
+  #   env:  FB_DATABASE_PATH
+  #   flag: --db-path
+  path: "./formbuilder.db"

@@ -105,12 +105,57 @@ silêncio com os valores padrão esconderia o problema.
 |---|---|---|---|
 | `address` | `FB_ADDRESS` | `--address` | `localhost:8080` |
 | `public_base_url` | `FB_PUBLIC_BASE_URL` | `--public-base-url` | `http://localhost:5173` |
+| `database.path` | `FB_DATABASE_PATH` | `--db-path` | `./formbuilder.db` |
 
 O prefixo é sempre `FB_`, e chaves aninhadas trocam `.` por `_`
-(`auth.jwt_secret` → `FB_AUTH_JWT_SECRET`).
+(`database.path` → `FB_DATABASE_PATH`).
 
 Configuração inválida derruba o boot com mensagem explícita, em vez de virar
 comportamento estranho na hora da requisição.
+
+---
+
+## Configurando o banco e executando migrations
+
+**Não há banco para instalar nem container para subir.** A persistência é
+SQLite através de [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite),
+um driver escrito em Go puro: sem cgo, sem compilador C, sem Docker. É o que
+faz o projeto rodar igual em Windows, macOS e Linux, que é o que o desafio pede.
+
+O banco é um arquivo, criado no primeiro uso:
+
+```bash
+task migrate                                  # aplica as migrations
+server migrate --db-path=./outro.db           # ou apontando para outro arquivo
+```
+
+O comando é idempotente — rodar duas vezes seguidas não faz nada na segunda.
+**O servidor também aplica as migrations no boot**, então um clone limpo sobe
+com `task dev:api` sem passo manual. `server migrate` existe para preparar o
+banco sem subir a API.
+
+As migrations vivem em `backend/internal/storage/sqlite/migrations/` e são
+embutidas no binário com `embed.FS`: o executável não depende de encontrar os
+arquivos `.sql` no disco. O versionamento é do
+[goose](https://github.com/pressly/goose), que registra o estado na tabela
+`goose_db_version`.
+
+### Os pragmas, e por que estão no DSN
+
+```
+file:formbuilder.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)
+```
+
+`foreign_keys` é **desligado por padrão** no SQLite, por compatibilidade
+retroativa — sem ele, todos os `ON DELETE CASCADE` do schema seriam
+decorativos. `journal_mode=WAL` permite leitores concorrentes com um escritor.
+`busy_timeout` faz o escritor esperar em vez de estourar `database is locked`
+na hora.
+
+Eles estão no **DSN** e não num `PRAGMA` executado depois porque valem **por
+conexão**, e o `database/sql` mantém um pool: um comando avulso configuraria
+apenas a primeira conexão, e o bug apareceria de forma intermitente. No DSN, o
+driver aplica em toda conexão nova.
 
 ---
 

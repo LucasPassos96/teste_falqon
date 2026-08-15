@@ -60,6 +60,11 @@ tasks:
         fi
         echo "Código gerado em sincronia com a spec."
 
+  migrate:
+    desc: Aplica as migrations no banco configurado
+    cmds:
+      - cd backend && go run ./cmd/server migrate {{.CLI_ARGS}}
+
   build:
     desc: Compila o binário do servidor
     cmds:
