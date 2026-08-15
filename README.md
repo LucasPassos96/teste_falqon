@@ -5,11 +5,11 @@ formulários numa área administrativa, publica, e a aplicação gera um link
 público que qualquer pessoa pode preencher sem autenticação. As respostas ficam
 persistidas e são consultáveis pelo administrador.
 
-Backend em Go, frontend em React + TypeScript, contrato em OpenAPI 3 que gera os
-dois lados.
+Backend em Go, frontend em React + TypeScript, e um contrato OpenAPI 3 que gera
+os dois lados.
 
 > **Status:** em construção. Este README cresce a cada fase entregue; hoje ele
-> cobre até o esqueleto do backend.
+> cobre o esqueleto do backend e o pipeline de geração de código.
 
 ---
 
@@ -17,7 +17,8 @@ dois lados.
 
 | Ferramenta | Versão | Para quê |
 |---|---|---|
-| [Go](https://go.dev/dl/) | 1.22+ | backend |
+| [Go](https://go.dev/dl/) | 1.24+ | backend |
+| [Node.js](https://nodejs.org) | 20+ | frontend |
 | [go-task](https://taskfile.dev) | 3.x | entrypoint de todos os comandos |
 
 ```bash
@@ -27,53 +28,60 @@ go install github.com/go-task/task/v3/cmd/task@latest
 `go install` coloca o binário em `$(go env GOPATH)/bin` — garanta que esse
 diretório está no `PATH`.
 
-Não é necessário Docker, compilador C nem nenhum serviço externo: o banco será
-SQLite através de um driver escrito em Go puro.
+Não é necessário Docker nem compilador C. O gerador de código Go está fixado
+como `tool` no `go.mod`, então **não há ferramenta para instalar à parte**.
 
 ---
 
-## Executar o backend
+## Executando
 
 ```bash
-task setup      # baixa as dependências
-task dev:api    # sobe o servidor em localhost:8080
+task setup      # dependências do backend e do frontend
+task dev:api    # backend em localhost:8080
+task dev:web    # frontend em localhost:5173  (outro terminal)
 ```
 
-Verificando:
+Abra <http://localhost:5173>. A página consulta a API e mostra a resposta.
+
+Verificando só o backend:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/api/v1/health
 # {"status":"ok"}
+
+curl http://localhost:8080/openapi.json
+# a especificação servida pelo próprio binário
 ```
 
 Outros comandos:
 
 ```bash
 task --list     # lista tudo
+task generate   # regera o servidor Go e o client TypeScript
+task verify     # falha se o gerado estiver fora de sincronia com a spec
 task build      # compila para ./bin/server
-task test       # go test ./...
 task vet        # análise estática
 ```
 
+**Sem CORS em desenvolvimento:** o Vite faz proxy de `/api` para
+`localhost:8080`, então navegador e API são a mesma origem. Isso elimina toda
+uma classe de problema de preflight e de cookie que apareceria mais adiante,
+na autenticação.
+
 ---
 
-## Configurar a aplicação
+## Configurando a aplicação
 
 A configuração vem de quatro fontes, nesta ordem de precedência:
 
 **flag > variável de ambiente > arquivo > default**
 
-Ou seja, as três formas que o desafio pede funcionam e podem ser combinadas:
+As três formas que o desafio cita funcionam e podem ser combinadas:
 
 ```bash
-# arquivo
-server run --config=./config.yaml
-
-# flag
-server run --address=localhost:9000
-
-# variável de ambiente
-FB_ADDRESS=localhost:9000 server run
+server run --config=./config.yaml        # arquivo
+server run --address=localhost:9000      # flag
+FB_ADDRESS=localhost:9000 server run     # variável de ambiente
 ```
 
 Para criar seu arquivo de configuração:
@@ -87,8 +95,8 @@ cp config.example.yaml config.yaml
 contém segredo real.
 
 Sem `--config`, o servidor procura um `config.yaml` no diretório atual e segue
-normalmente se não encontrar. **Com** `--config` apontando para um arquivo que
-não existe, ele falha na hora: se você pediu um arquivo específico, subir em
+normalmente se não encontrar. **Com** `--config` apontando para um arquivo
+inexistente, ele falha no boot: se você pediu um arquivo específico, subir em
 silêncio com os valores padrão esconderia o problema.
 
 ### Chaves disponíveis
@@ -101,18 +109,94 @@ silêncio com os valores padrão esconderia o problema.
 O prefixo é sempre `FB_`, e chaves aninhadas trocam `.` por `_`
 (`auth.jwt_secret` → `FB_AUTH_JWT_SECRET`).
 
-`public_base_url` é a origem do frontend: é a partir dela que o link público de
-um formulário publicado é montado, então o link sai correto em qualquer
-ambiente sem recompilar nada.
-
 Configuração inválida derruba o boot com mensagem explícita, em vez de virar
 comportamento estranho na hora da requisição.
+
+---
+
+## Gerando a especificação OpenAPI e o client TypeScript
+
+```bash
+task generate
+```
+
+Um comando gera os dois lados.
+
+### Como funciona
+
+[`api/openapi.yaml`](api/openapi.yaml) é a **fonte da verdade**. Dois geradores
+leem esse arquivo:
+
+```
+                      api/openapi.yaml
+                     /                \
+          oapi-codegen                @hey-api/openapi-ts
+               ↓                              ↓
+   backend/internal/httpapi/gen        frontend/src/api/gen
+   (interface + tipos Go)              (tipos + client + hooks Query)
+```
+
+O fluxo de trabalho ao mudar a API:
+
+1. Edita `api/openapi.yaml`
+2. `task generate`
+3. O Go **para de compilar** até o handler novo existir
+4. O TypeScript **para de tipar** se o front usar o campo antigo
+
+Isso não é teoria — dá para reproduzir. Adicione um endpoint na spec, rode
+`task generate` e compile:
+
+```
+*API does not implement gen.StrictServerInterface (missing method GetPing)
+```
+
+Renomeie um campo de um schema e rode `tsc`:
+
+```
+error TS2339: Property 'status' does not exist on type 'Health'.
+```
+
+Divergir da spec é erro de compilação, não bug em produção.
+
+### Por que a spec é escrita à mão e não extraída do código
+
+O desafio aceita as duas formas: especificação *"gerada automaticamente a
+partir do backend **ou** parte de um processo de geração integrado ao código"*.
+A segunda foi escolhida de propósito.
+
+Com anotações no código, a spec **descreve** o que o backend faz: se o handler
+está errado, a spec documenta o erro fielmente. Com spec-first e o
+`strict-server` do `oapi-codegen`, o Go implementa uma interface gerada — um
+handler fora do contrato não compila. E o mesmo arquivo alimenta o client
+TypeScript, então os dois lados derivam da mesma fonte e não têm como divergir.
+
+O custo é escrever YAML à mão, que é verboso. Num time com API mudando rápido,
+code-first reduz atrito, e aí a compensação seria teste de contrato.
+
+### O código gerado é versionado
+
+`backend/internal/httpapi/gen/` e `frontend/src/api/gen/` estão no repositório
+de propósito: mudança de contrato aparece no diff do PR, revisável, em vez de
+acontecer invisível no build. `task verify` regera tudo e falha se o resultado
+diferir do que está commitado — pega quem editou código gerado à mão ou
+esqueceu de rodar `task generate`. É o que roda em CI.
+
+### As ferramentas não precisam ser instaladas
+
+O `oapi-codegen` está fixado no `go.mod` com a diretiva `tool`, então
+`go tool oapi-codegen` usa a versão exata que o projeto declara. O
+`@hey-api/openapi-ts` vem do `package.json`. Ninguém precisa acertar a versão
+de nada na mão, e não existe "na minha máquina funciona" por diferença de
+ferramenta.
 
 ---
 
 ## Decisões de arquitetura
 
 Registradas aqui conforme são tomadas, com o porquê e a alternativa descartada.
+
+**Spec-first, com o contrato virando tipo nos dois lados.** Detalhado acima. É
+a decisão central do projeto.
 
 **`main` só resolve sinais do sistema operacional.** O pacote `main` não pode
 ser importado por ninguém, então lógica que cai lá é lógica que não tem como
@@ -134,8 +218,9 @@ fechar, para não cortar uma submissão no meio da transação.
 **Cabeçalhos de segurança em toda resposta:** `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
 
-**`/health` fora de `/api/v1`.** É endpoint de operação, não parte do contrato
-do produto.
+**A spec é servida pelo próprio binário** em `/openapi.json`, embutida em tempo
+de geração. Garante que a especificação publicada é exatamente a que gerou
+aquele executável.
 
 ---
 
@@ -143,13 +228,27 @@ do produto.
 
 ```
 .
-├── Taskfile.yml              # entrypoint único de DX
-├── api/                      # openapi.yaml — fonte da verdade (em breve)
-└── backend/
-    ├── config.example.yaml
-    ├── cmd/server/main.go    # só sinais; delega para internal/cli
-    └── internal/
-        ├── cli/              # cobra: root, run
-        ├── config/           # viper: default → arquivo → env → flag
-        └── httpapi/          # chi, middlewares, servidor
+├── Taskfile.yml                  # entrypoint único de DX
+├── api/
+│   └── openapi.yaml              # ← FONTE DA VERDADE
+├── backend/
+│   ├── config.example.yaml
+│   ├── oapi-codegen.yaml
+│   ├── cmd/server/main.go        # só sinais; delega para internal/cli
+│   └── internal/
+│       ├── cli/                  # cobra: root, run
+│       ├── config/               # viper: default → arquivo → env → flag
+│       └── httpapi/
+│           ├── gen/              # ← GERADO, versionado
+│           ├── api.go            # implementa a interface gerada
+│           ├── router.go
+│           ├── middleware.go
+│           └── server.go
+└── frontend/
+    ├── openapi-ts.config.ts
+    ├── vite.config.ts            # proxy /api → :8080
+    └── src/
+        ├── api/gen/              # ← GERADO, versionado
+        ├── main.tsx
+        └── App.tsx
 ```

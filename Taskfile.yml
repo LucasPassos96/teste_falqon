@@ -1,8 +1,7 @@
 # Entrypoint único de DX. Todo comando do projeto passa por aqui.
 #
-# go-task em vez de make: `make` no Windows exige instalar um port do GNU Make,
-# e o desafio pede que a aplicação seja multiplataforma. O go-task instala com
-# `go install`, que quem for avaliar já tem por causa do backend em Go.
+# go-task em vez de make: o desafio pede aplicação multiplataforma, e `make` no
+# Windows exige instalar um port do GNU Make. O go-task instala com `go install`.
 #
 #   go install github.com/go-task/task/v3/cmd/task@latest
 version: "3"
@@ -16,9 +15,50 @@ tasks:
       - task --list
 
   setup:
-    desc: Baixa dependências do backend
+    desc: Instala as dependências do backend e do frontend
     cmds:
       - cd backend && go mod download
+      - cd frontend && npm install
+
+  generate:
+    desc: Gera o servidor Go e o client TypeScript a partir de api/openapi.yaml
+    cmds:
+      - task: generate:go
+      - task: generate:ts
+
+  generate:go:
+    desc: Gera a interface e os tipos Go (oapi-codegen)
+    cmds:
+      # A ferramenta está fixada no go.mod como `tool`, então quem clonar não
+      # precisa instalar nada além do Go.
+      - cd backend && go generate ./...
+
+  generate:ts:
+    desc: Gera tipos, client e hooks do TanStack Query (@hey-api/openapi-ts)
+    cmds:
+      - cd frontend && npm run generate
+
+  verify:
+    desc: Falha se o código gerado estiver fora de sincronia com a spec
+    cmds:
+      # Regera e compara com o que está versionado. Pega quem editou código
+      # gerado à mão ou esqueceu de rodar `task generate` depois de mexer na
+      # spec — divergência vira falha de build, não bug em produção.
+      #
+      # `git status --porcelain` em vez de `git diff --exit-code` porque este
+      # último só enxerga arquivos rastreados: código gerado novo e ainda não
+      # commitado passaria despercebido.
+      - task: generate
+      - |
+        pendente="$(git status --porcelain -- backend/internal/httpapi/gen frontend/src/api/gen)"
+        if [ -n "$pendente" ]; then
+          echo "Código gerado fora de sincronia com api/openapi.yaml:"
+          echo "$pendente"
+          echo
+          echo "Rode 'task generate' e commite o resultado."
+          exit 1
+        fi
+        echo "Código gerado em sincronia com a spec."
 
   build:
     desc: Compila o binário do servidor
@@ -26,9 +66,14 @@ tasks:
       - cd backend && go build -o ../bin/server ./cmd/server
 
   dev:api:
-    desc: Sobe o backend
+    desc: Sobe o backend em localhost:8080
     cmds:
       - cd backend && go run ./cmd/server run {{.CLI_ARGS}}
+
+  dev:web:
+    desc: Sobe o frontend em localhost:5173
+    cmds:
+      - cd frontend && npm run dev
 
   test:
     desc: Roda os testes do backend

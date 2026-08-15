@@ -1,0 +1,36 @@
+openapi: 3.0.3
+
+info:
+  title: Form Builder API
+  version: 1.0.0
+  description: |
+    Contrato da API do Form Builder.
+
+    Este arquivo é a fonte da verdade: o servidor Go e o client TypeScript
+    são gerados a partir dele. Ver `task generate`.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Verifica se a API está no ar
+      responses:
+        "200":
+          description: A API está respondendo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok

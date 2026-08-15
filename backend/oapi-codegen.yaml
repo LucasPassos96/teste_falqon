@@ -1,0 +1,14 @@
+# Configuração do oapi-codegen. O caminho de saída vem do //go:generate em
+# internal/httpapi/generate.go, para existir num lugar só.
+package: gen
+
+generate:
+  # chi-server: o roteador gerado usa chi, o mesmo do resto do projeto.
+  chi-server: true
+  # strict-server: gera uma interface em que o handler recebe o request já
+  # parseado e devolve um tipo de resposta que só permite os status
+  # declarados na spec. Handler fora do contrato não compila.
+  strict-server: true
+  models: true
+  # embedded-spec: embute a spec no binário para servi-la em /openapi.json.
+  embedded-spec: true
