@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/LucasPassos96/teste_falqon/backend/internal/auth"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/config"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/storage/sqlite"
@@ -47,7 +48,14 @@ func newRunCmd() *cobra.Command {
 			}
 			logger.Info("banco pronto", "path", cfg.Database.Path, "migration", version)
 
-			return httpapi.Run(cmd.Context(), cfg, logger)
+			// A montagem das dependências acontece aqui, num lugar só: o
+			// repositório concreto entra na interface que o serviço declarou.
+			authSvc := auth.NewService(
+				sqlite.NewUserRepo(db),
+				auth.NewTokenIssuer(cfg.Auth.JWTSecret, cfg.Auth.SessionTTL),
+			)
+
+			return httpapi.Run(cmd.Context(), cfg, authSvc, logger)
 		},
 	}
 

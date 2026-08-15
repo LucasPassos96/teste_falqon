@@ -15,9 +15,12 @@ tasks:
       - task --list
 
   setup:
-    desc: Instala as dependências do backend e do frontend
+    desc: Prepara o projeto para rodar (dependências + config com segredo próprio)
     cmds:
       - cd backend && go mod download
+      # Cria backend/config.yaml com um segredo de sessão gerado na hora.
+      # Não sobrescreve um config existente, então rodar de novo é seguro.
+      - cd backend && go run ./cmd/server init-config
       - cd frontend && npm install
 
   generate:

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LucasPassos96/teste_falqon/backend/internal/auth"
 	"github.com/LucasPassos96/teste_falqon/backend/internal/config"
 )
 
@@ -21,10 +22,15 @@ const (
 
 // Run sobe o servidor e só retorna quando ctx é cancelado (SIGINT/SIGTERM) ou
 // o servidor falha.
-func Run(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
+func Run(ctx context.Context, cfg *config.Config, authSvc *auth.Service, log *slog.Logger) error {
+	router, err := NewRouter(cfg, authSvc, log)
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:    cfg.Address,
-		Handler: NewRouter(log),
+		Handler: router,
 		// O zero value do http.Server não tem timeout nenhum: uma conexão que
 		// envia o cabeçalho byte a byte segura uma goroutine para sempre.
 		ReadHeaderTimeout: readHeaderTimeout,

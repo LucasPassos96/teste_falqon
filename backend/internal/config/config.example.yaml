@@ -26,3 +26,23 @@ database:
   #   env:  FB_DATABASE_PATH
   #   flag: --db-path
   path: "./formbuilder.db"
+
+auth:
+  # Segredo de assinatura da sessão. OBRIGATÓRIO, mínimo 32 bytes.
+  #
+  # O servidor RECUSA subir com o valor abaixo — ele está publicado no
+  # repositório e assinaria sessões forjáveis por qualquer um. Gere o seu:
+  #
+  #   openssl rand -base64 48
+  #   # ou, sem openssl:
+  #   go run -e 'package main;import("crypto/rand";"encoding/base64";"fmt");func main(){b:=make([]byte,48);rand.Read(b);fmt.Println(base64.StdEncoding.EncodeToString(b))}'
+  #
+  #   env:  FB_AUTH_JWT_SECRET
+  #   flag: --jwt-secret
+  jwt_secret: "troque-isto-por-um-segredo-de-no-minimo-32-bytes"
+
+  # Validade da sessão. Curta de propósito: o JWT não tem revogação no
+  # servidor, então um token vazado vale até expirar.
+  #   env:  FB_AUTH_SESSION_TTL
+  #   flag: --session-ttl
+  session_ttl: "24h"

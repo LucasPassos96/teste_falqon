@@ -8,6 +8,26 @@ export type Health = {
     status: string;
 };
 
+export type Error = {
+    code: string;
+    message: string;
+};
+
+export type ValidationError = {
+    code: string;
+    message: string;
+    field_errors: Array<{
+        field: string;
+        message: string;
+    }>;
+};
+
+export type User = {
+    id: string;
+    email: string;
+    name: string;
+};
+
 export type GetHealthData = {
     body?: never;
     path?: never;
@@ -23,3 +43,109 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type RegisterData = {
+    body: {
+        name: string;
+        email: string;
+        password: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/register';
+};
+
+export type RegisterErrors = {
+    /**
+     * Operação não permitida no estado atual do recurso
+     */
+    409: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type RegisterError = RegisterErrors[keyof RegisterErrors];
+
+export type RegisterResponses = {
+    /**
+     * Conta criada; define o cookie de sessão
+     */
+    201: User;
+};
+
+export type RegisterResponse = RegisterResponses[keyof RegisterResponses];
+
+export type LoginData = {
+    body: {
+        email: string;
+        password: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/login';
+};
+
+export type LoginErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type LoginError = LoginErrors[keyof LoginErrors];
+
+export type LoginResponses = {
+    /**
+     * Autenticado; define o cookie de sessão
+     */
+    200: User;
+};
+
+export type LoginResponse = LoginResponses[keyof LoginResponses];
+
+export type LogoutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/logout';
+};
+
+export type LogoutResponses = {
+    /**
+     * Cookie limpo
+     */
+    204: void;
+};
+
+export type LogoutResponse = LogoutResponses[keyof LogoutResponses];
+
+export type GetCurrentUserData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/me';
+};
+
+export type GetCurrentUserErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+};
+
+export type GetCurrentUserError = GetCurrentUserErrors[keyof GetCurrentUserErrors];
+
+export type GetCurrentUserResponses = {
+    /**
+     * OK
+     */
+    200: User;
+};
+
+export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];

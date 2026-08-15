@@ -12,11 +12,24 @@ info:
 servers:
   - url: /api/v1
 
+# Aplica cookieAuth em TODA rota por padrão. Uma rota pública precisa
+# sobrescrever com `security: []` explicitamente.
+#
+# O default fica no lado seguro: rota nova nasce protegida, e abrir uma é uma
+# linha visível no diff. O inverso — abrir por padrão e proteger caso a caso —
+# transforma esquecimento em vazamento.
+#
+# O middleware do backend lê esta declaração da spec embutida no boot, então a
+# proteção é derivada daqui e não duplicada no código.
+security:
+  - cookieAuth: []
+
 paths:
   /health:
     get:
       operationId: getHealth
       summary: Verifica se a API está no ar
+      security: []
       responses:
         "200":
           description: A API está respondendo
@@ -25,7 +38,138 @@ paths:
               schema:
                 $ref: "#/components/schemas/Health"
 
+  /auth/register:
+    post:
+      operationId: register
+      summary: Cria uma conta com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+                email:
+                  type: string
+                  format: email
+                # O teto de 72 não é estético: o bcrypt ignora tudo depois do
+                # byte 72 em silêncio.
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        "201":
+          description: Conta criada; define o cookie de sessão
+          headers:
+            Set-Cookie:
+              description: Cookie de sessão HttpOnly
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: Autentica com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Autenticado; define o cookie de sessão
+          headers:
+            Set-Cookie:
+              description: Cookie de sessão HttpOnly
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Encerra a sessão limpando o cookie
+      responses:
+        "204":
+          description: Cookie limpo
+          headers:
+            Set-Cookie:
+              description: Cookie de sessão HttpOnly
+              schema:
+                type: string
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Usuário da sessão atual
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+
+  responses:
+    Unauthorized:
+      description: Sessão ausente ou inválida
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Operação não permitida no estado atual do recurso
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationFailed:
+      description: Payload inválido
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+
   schemas:
     Health:
       type: object
@@ -34,3 +178,46 @@ components:
         status:
           type: string
           example: ok
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: invalid_credentials
+        message:
+          type: string
+
+    ValidationError:
+      type: object
+      required: [code, message, field_errors]
+      properties:
+        code:
+          type: string
+          example: validation_failed
+        message:
+          type: string
+        field_errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetHealthData, GetHealthResponses } from './types.gen';
+import type { GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetHealthData, GetHealthResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, RegisterData, RegisterErrors, RegisterResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -22,3 +22,53 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * Verifica se a API está no ar
  */
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>) => (options?.client ?? client).get<GetHealthResponses, unknown, ThrowOnError>({ url: '/health', ...options });
+
+/**
+ * Cria uma conta com e-mail e senha
+ */
+export const register = <ThrowOnError extends boolean = false>(options: Options<RegisterData, ThrowOnError>) => (options.client ?? client).post<RegisterResponses, RegisterErrors, ThrowOnError>({
+    url: '/auth/register',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Autentica com e-mail e senha
+ */
+export const login = <ThrowOnError extends boolean = false>(options: Options<LoginData, ThrowOnError>) => (options.client ?? client).post<LoginResponses, LoginErrors, ThrowOnError>({
+    url: '/auth/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Encerra a sessão limpando o cookie
+ */
+export const logout = <ThrowOnError extends boolean = false>(options?: Options<LogoutData, ThrowOnError>) => (options?.client ?? client).post<LogoutResponses, unknown, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/auth/logout',
+    ...options
+});
+
+/**
+ * Usuário da sessão atual
+ */
+export const getCurrentUser = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentUserData, ThrowOnError>) => (options?.client ?? client).get<GetCurrentUserResponses, GetCurrentUserErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/auth/me',
+    ...options
+});
