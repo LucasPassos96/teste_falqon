@@ -22,8 +22,8 @@ func (a *API) ListForms(ctx context.Context, _ gen.ListFormsRequestObject) (gen.
 	}
 
 	out := make([]gen.Form, 0, len(list))
-	for _, f := range list {
-		g, err := a.toGenForm(f)
+	for _, form := range list {
+		g, err := a.toGenForm(form)
 		if err != nil {
 			return nil, err
 		}
@@ -124,12 +124,12 @@ func (a *API) ReplaceFormFields(ctx context.Context, req gen.ReplaceFormFieldsRe
 	}
 
 	out := make([]gen.Field, 0, len(saved))
-	for _, f := range saved {
-		g, err := toGenField(f)
+	for _, campo := range saved {
+		gerado, err := toGenField(campo)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, g)
+		out = append(out, gerado)
 	}
 	return gen.ReplaceFormFields200JSONResponse(out), nil
 }
@@ -180,38 +180,38 @@ func (a *API) ownerID(ctx context.Context) (string, error) {
 	return id, nil
 }
 
-func (a *API) toGenForm(f forms.Form) (gen.Form, error) {
-	id, err := uuid.Parse(f.ID)
+func (a *API) toGenForm(form forms.Form) (gen.Form, error) {
+	id, err := uuid.Parse(form.ID)
 	if err != nil {
 		return gen.Form{}, err
 	}
 
 	out := gen.Form{
 		Id:              id,
-		Title:           f.Title,
-		Description:     f.Description,
-		Status:          gen.FormStatus(f.Status),
-		SubmissionCount: f.SubmissionCount,
-		CreatedAt:       f.CreatedAt,
-		UpdatedAt:       f.UpdatedAt,
+		Title:           form.Title,
+		Description:     form.Description,
+		Status:          gen.FormStatus(form.Status),
+		SubmissionCount: form.SubmissionCount,
+		CreatedAt:       form.CreatedAt,
+		UpdatedAt:       form.UpdatedAt,
 	}
 
 	// Slug e URL só existem depois da primeira publicação; ficam nulos até lá.
-	if f.PublicSlug != "" {
-		slug := f.PublicSlug
-		url := a.forms.PublicURL(f)
+	if form.PublicSlug != "" {
+		slug := form.PublicSlug
+		url := a.forms.PublicURL(form)
 		out.PublicSlug = &slug
 		out.PublicUrl = &url
 	}
 
-	if f.Fields != nil {
-		fields := make([]gen.Field, 0, len(f.Fields))
-		for _, field := range f.Fields {
-			g, err := toGenField(field)
+	if form.Fields != nil {
+		fields := make([]gen.Field, 0, len(form.Fields))
+		for _, campo := range form.Fields {
+			gerado, err := toGenField(campo)
 			if err != nil {
 				return gen.Form{}, err
 			}
-			fields = append(fields, g)
+			fields = append(fields, gerado)
 		}
 		out.Fields = &fields
 	}
@@ -219,35 +219,35 @@ func (a *API) toGenForm(f forms.Form) (gen.Form, error) {
 	return out, nil
 }
 
-func toGenField(f forms.Field) (gen.Field, error) {
-	id, err := uuid.Parse(f.ID)
+func toGenField(campo forms.Field) (gen.Field, error) {
+	id, err := uuid.Parse(campo.ID)
 	if err != nil {
 		return gen.Field{}, err
 	}
 
-	config := toGenConfig(f.Config)
+	config := toGenConfig(campo.Config)
 	return gen.Field{
 		Id:       id,
-		Type:     gen.FieldType(f.Type),
-		Label:    f.Label,
-		HelpText: &f.HelpText,
-		Required: f.Required,
-		Position: f.Position,
+		Type:     gen.FieldType(campo.Type),
+		Label:    campo.Label,
+		HelpText: &campo.HelpText,
+		Required: campo.Required,
+		Position: campo.Position,
 		Config:   &config,
 	}, nil
 }
 
-func toGenConfig(c forms.FieldConfig) gen.FieldConfig {
+func toGenConfig(config forms.FieldConfig) gen.FieldConfig {
 	out := gen.FieldConfig{
-		MinLength: c.MinLength,
-		MaxLength: c.MaxLength,
-		Min:       c.Min,
-		Max:       c.Max,
+		MinLength: config.MinLength,
+		MaxLength: config.MaxLength,
+		Min:       config.Min,
+		Max:       config.Max,
 	}
-	if len(c.Options) > 0 {
-		opts := make([]gen.FieldOption, 0, len(c.Options))
-		for _, o := range c.Options {
-			opts = append(opts, gen.FieldOption{Value: o.Value, Label: o.Label})
+	if len(config.Options) > 0 {
+		opts := make([]gen.FieldOption, 0, len(config.Options))
+		for _, opcao := range config.Options {
+			opts = append(opts, gen.FieldOption{Value: opcao.Value, Label: opcao.Label})
 		}
 		out.Options = &opts
 	}
@@ -272,8 +272,8 @@ func toDomainFieldInput(in gen.FieldInput) forms.FieldInput {
 		}
 		if in.Config.Options != nil {
 			opts := make([]forms.Option, 0, len(*in.Config.Options))
-			for _, o := range *in.Config.Options {
-				opts = append(opts, forms.Option{Value: o.Value, Label: o.Label})
+			for _, opcao := range *in.Config.Options {
+				opts = append(opts, forms.Option{Value: opcao.Value, Label: opcao.Label})
 			}
 			out.Config.Options = opts
 		}

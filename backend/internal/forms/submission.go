@@ -43,13 +43,13 @@ func (e *ValidationError) Error() string {
 // nem de banco.
 func ValidateSubmission(fields []Field, answers []Answer) ([]Answer, error) {
 	given := make(map[string]string, len(answers))
-	for _, a := range answers {
-		given[a.FieldID] = a.Value
+	for _, resposta := range answers {
+		given[resposta.FieldID] = resposta.Value
 	}
 
 	known := make(map[string]bool, len(fields))
-	for _, f := range fields {
-		known[f.ID] = true
+	for _, campo := range fields {
+		known[campo.ID] = true
 	}
 
 	var errs []FieldError
@@ -58,34 +58,34 @@ func ValidateSubmission(fields []Field, answers []Answer) ([]Answer, error) {
 	// bug de integração.
 	for id := range given {
 		if !known[id] {
-			errs = append(errs, FieldError{FieldID: id, Message: "Campo não pertence a este formulário"})
+			errs = append(errs, FieldError{FieldID: id, Message: "Campo não pertence resposta este formulário"})
 		}
 	}
 
 	normalized := make([]Answer, 0, len(fields))
 
-	// Percorre a definição, não o payload: assim um campo obrigatório omitido
+	// Percorre resposta definição, não o payload: assim um campo obrigatório omitido
 	// pelo cliente cai na mesma regra de vazio, em vez de passar despercebido.
-	for _, f := range fields {
-		raw := strings.TrimSpace(given[f.ID])
+	for _, campo := range fields {
+		raw := strings.TrimSpace(given[campo.ID])
 
 		if raw == "" {
-			if f.Required {
-				errs = append(errs, FieldError{f.ID, "Campo obrigatório"})
+			if campo.Required {
+				errs = append(errs, FieldError{campo.ID, "Campo obrigatório"})
 				continue
 			}
 			// Opcional e vazio pula as demais regras, senão um campo com
 			// mínimo de caracteres seria impossível de deixar em branco.
-			normalized = append(normalized, Answer{FieldID: f.ID, FieldLabel: f.Label, Value: ""})
+			normalized = append(normalized, Answer{FieldID: campo.ID, FieldLabel: campo.Label, Value: ""})
 			continue
 		}
 
-		value, err := validateValue(f, raw)
+		value, err := validateValue(campo, raw)
 		if err != nil {
-			errs = append(errs, FieldError{f.ID, err.Error()})
+			errs = append(errs, FieldError{campo.ID, err.Error()})
 			continue
 		}
-		normalized = append(normalized, Answer{FieldID: f.ID, FieldLabel: f.Label, Value: value})
+		normalized = append(normalized, Answer{FieldID: campo.ID, FieldLabel: campo.Label, Value: value})
 	}
 
 	if len(errs) > 0 {
@@ -96,17 +96,17 @@ func ValidateSubmission(fields []Field, answers []Answer) ([]Answer, error) {
 
 // validateValue aplica a regra do tipo e devolve o valor canonizado. O service
 // persiste este retorno, nunca o payload original.
-func validateValue(f Field, raw string) (string, error) {
-	switch f.Type {
+func validateValue(campo Field, raw string) (string, error) {
+	switch campo.Type {
 
 	case FieldShortText, FieldLongText:
 		// RuneCountInString e não len(): len conta bytes, e len("ação") é 5.
-		n := utf8.RuneCountInString(raw)
-		if f.Config.MinLength != nil && n < *f.Config.MinLength {
-			return "", fmt.Errorf("Mínimo de %d caracteres", *f.Config.MinLength)
+		caracteres := utf8.RuneCountInString(raw)
+		if campo.Config.MinLength != nil && caracteres < *campo.Config.MinLength {
+			return "", fmt.Errorf("Mínimo de %d caracteres", *campo.Config.MinLength)
 		}
-		if f.Config.MaxLength != nil && n > *f.Config.MaxLength {
-			return "", fmt.Errorf("Máximo de %d caracteres", *f.Config.MaxLength)
+		if campo.Config.MaxLength != nil && caracteres > *campo.Config.MaxLength {
+			return "", fmt.Errorf("Máximo de %d caracteres", *campo.Config.MaxLength)
 		}
 		return raw, nil
 
@@ -118,21 +118,21 @@ func validateValue(f Field, raw string) (string, error) {
 		return strings.ToLower(addr.Address), nil
 
 	case FieldNumber:
-		n, err := strconv.ParseFloat(raw, 64)
+		numero, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			return "", fmt.Errorf("Informe um número válido")
 		}
-		if f.Config.Min != nil && n < *f.Config.Min {
-			return "", fmt.Errorf("Valor mínimo: %g", *f.Config.Min)
+		if campo.Config.Min != nil && numero < *campo.Config.Min {
+			return "", fmt.Errorf("Valor mínimo: %g", *campo.Config.Min)
 		}
-		if f.Config.Max != nil && n > *f.Config.Max {
-			return "", fmt.Errorf("Valor máximo: %g", *f.Config.Max)
+		if campo.Config.Max != nil && numero > *campo.Config.Max {
+			return "", fmt.Errorf("Valor máximo: %g", *campo.Config.Max)
 		}
 		// Canoniza "007" para "7" e "1.50" para "1.5".
-		return strconv.FormatFloat(n, 'f', -1, 64), nil
+		return strconv.FormatFloat(numero, 'f', -1, 64), nil
 
 	case FieldSelect:
-		for _, opt := range f.Config.Options {
+		for _, opt := range campo.Config.Options {
 			if opt.Value == raw {
 				return raw, nil
 			}
@@ -145,7 +145,7 @@ func validateValue(f Field, raw string) (string, error) {
 			return "true", nil
 		case "false":
 			// Num checkbox, obrigatório significa "precisa estar marcado".
-			if f.Required {
+			if campo.Required {
 				return "", fmt.Errorf("Campo obrigatório")
 			}
 			return "false", nil

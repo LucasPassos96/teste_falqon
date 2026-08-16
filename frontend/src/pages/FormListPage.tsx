@@ -75,9 +75,9 @@ export default function FormListPage() {
             {formularios.length === 0
               ? 'Nada por aqui ainda'
               : `${formularios.length} no total · ${
-                  formularios.filter((f) => f.status === 'published').length
+                  formularios.filter((form) => form.status === 'published').length
                 } publicado${
-                  formularios.filter((f) => f.status === 'published').length === 1 ? '' : 's'
+                  formularios.filter((form) => form.status === 'published').length === 1 ? '' : 's'
                 }`}
           </Typography>
         </Box>
@@ -102,13 +102,13 @@ export default function FormListPage() {
       )}
 
       <Stack spacing={2}>
-        {formularios.map((f) => (
+        {formularios.map((formulario) => (
           <CartaoFormulario
-            key={f.id}
-            form={f}
+            key={formulario.id}
+            form={formulario}
             onRemover={() => {
-              if (confirm(`Remover "${f.title}" e todas as respostas recebidas?`)) {
-                remover.mutate({ path: { formId: f.id } })
+              if (confirm(`Remover "${formulario.title}" e todas as respostas recebidas?`)) {
+                remover.mutate({ path: { formId: formulario.id } })
               }
             }}
           />

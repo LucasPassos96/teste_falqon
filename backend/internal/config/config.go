@@ -90,35 +90,35 @@ func RegisterFlags(fs *pflag.FlagSet) {
 }
 
 func Load(path string, fs *pflag.FlagSet) (*Config, error) {
-	v := viper.New()
-	v.SetEnvPrefix(envPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	settings := viper.New()
+	settings.SetEnvPrefix(envPrefix)
+	settings.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	for key, def := range defaults {
-		v.SetDefault(key, def)
+		settings.SetDefault(key, def)
 		// BindEnv explícito: o AutomaticEnv do viper não alimenta o Unmarshal
 		// de forma confiável.
-		if err := v.BindEnv(key); err != nil {
+		if err := settings.BindEnv(key); err != nil {
 			return nil, fmt.Errorf("vincular env %q: %w", key, err)
 		}
 	}
 
 	if fs != nil {
 		for key, name := range flagFor {
-			if f := fs.Lookup(name); f != nil {
-				if err := v.BindPFlag(key, f); err != nil {
+			if flag := fs.Lookup(name); flag != nil {
+				if err := settings.BindPFlag(key, flag); err != nil {
 					return nil, fmt.Errorf("vincular flag %q: %w", name, err)
 				}
 			}
 		}
 	}
 
-	if err := readFile(v, path); err != nil {
+	if err := readFile(settings, path); err != nil {
 		return nil, err
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := settings.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("interpretar configuração: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
@@ -129,21 +129,21 @@ func Load(path string, fs *pflag.FlagSet) (*Config, error) {
 
 // readFile trata a diferença entre pedir um arquivo e procurar um: com
 // --config explícito, arquivo ausente é erro; sem a flag, é normal.
-func readFile(v *viper.Viper, path string) error {
+func readFile(settings *viper.Viper, path string) error {
 	if path != "" {
-		v.SetConfigFile(path)
-		if err := v.ReadInConfig(); err != nil {
+		settings.SetConfigFile(path)
+		if err := settings.ReadInConfig(); err != nil {
 			return fmt.Errorf("ler o arquivo de configuração %q: %w", path, err)
 		}
 		return nil
 	}
 
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
+	settings.SetConfigName("config")
+	settings.SetConfigType("yaml")
+	settings.AddConfigPath(".")
 
 	var notFound viper.ConfigFileNotFoundError
-	if err := v.ReadInConfig(); err != nil && !errors.As(err, &notFound) {
+	if err := settings.ReadInConfig(); err != nil && !errors.As(err, &notFound) {
 		return fmt.Errorf("ler o arquivo de configuração: %w", err)
 	}
 	return nil
@@ -153,8 +153,8 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.Address) == "" {
 		return errors.New("address é obrigatório")
 	}
-	u, err := url.Parse(c.PublicBaseURL)
-	if err != nil || u.Scheme == "" || u.Host == "" {
+	base, err := url.Parse(c.PublicBaseURL)
+	if err != nil || base.Scheme == "" || base.Host == "" {
 		return fmt.Errorf("public_base_url precisa ser uma URL absoluta (ex.: http://localhost:5173), recebi %q", c.PublicBaseURL)
 	}
 	if strings.TrimSpace(c.Database.Path) == "" {

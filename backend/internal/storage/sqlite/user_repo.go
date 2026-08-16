@@ -22,11 +22,11 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 var _ auth.UserRepository = (*UserRepo)(nil)
 
 func (r *UserRepo) Create(ctx context.Context, u auth.User) error {
-	const q = `
+	const query = `
 		INSERT INTO users (id, email, name, password_hash, google_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 
-	_, err := r.db.ExecContext(ctx, q,
+	_, err := r.db.ExecContext(ctx, query,
 		u.ID, u.Email, u.Name,
 		nullIfEmpty(u.PasswordHash),
 		nullIfEmpty(u.GoogleID),
@@ -44,23 +44,23 @@ func (r *UserRepo) Create(ctx context.Context, u auth.User) error {
 }
 
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (auth.User, error) {
-	const q = `
+	const query = `
 		SELECT id, email, name, password_hash, google_id, created_at, updated_at
 		FROM users WHERE email = ?`
-	return r.scanOne(r.db.QueryRowContext(ctx, q, email))
+	return r.scanOne(r.db.QueryRowContext(ctx, query, email))
 }
 
 func (r *UserRepo) FindByID(ctx context.Context, id string) (auth.User, error) {
-	const q = `
+	const query = `
 		SELECT id, email, name, password_hash, google_id, created_at, updated_at
 		FROM users WHERE id = ?`
-	return r.scanOne(r.db.QueryRowContext(ctx, q, id))
+	return r.scanOne(r.db.QueryRowContext(ctx, query, id))
 }
 
 func (r *UserRepo) LinkGoogleID(ctx context.Context, userID, googleID string) error {
-	const q = `UPDATE users SET google_id = ?, updated_at = ? WHERE id = ?`
+	const query = `UPDATE users SET google_id = ?, updated_at = ? WHERE id = ?`
 
-	_, err := r.db.ExecContext(ctx, q, googleID, formatTime(time.Now().UTC()), userID)
+	_, err := r.db.ExecContext(ctx, query, googleID, formatTime(time.Now().UTC()), userID)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return auth.ErrEmailTaken

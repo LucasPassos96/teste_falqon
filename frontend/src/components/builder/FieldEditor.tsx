@@ -68,9 +68,9 @@ export function FieldEditor({ campo, indice, total, onChange, onRemove, onMover 
                 alterar({ type: e.target.value as FieldType, config: {} })
               }}
             >
-              {TIPOS.map((t) => (
-                <MenuItem key={t.valor} value={t.valor}>
-                  {t.rotulo}
+              {TIPOS.map((tipo) => (
+                <MenuItem key={tipo.valor} value={tipo.valor}>
+                  {tipo.rotulo}
                 </MenuItem>
               ))}
             </TextField>
@@ -167,15 +167,15 @@ export function FieldEditor({ campo, indice, total, onChange, onRemove, onMover 
               </Typography>
 
               <Stack spacing={1} sx={{ mt: 1 }}>
-                {opcoes.map((opt, i) => (
-                  <Stack key={i} direction="row" spacing={1}>
+                {opcoes.map((opcao, indice) => (
+                  <Stack key={indice} direction="row" spacing={1}>
                     <TextField
                       label="Valor"
                       size="small"
-                      value={opt.value}
+                      value={opcao.value}
                       onChange={(e) => {
                         const novas = [...opcoes]
-                        novas[i] = { ...opt, value: e.target.value }
+                        novas[indice] = { ...opcao, value: e.target.value }
                         alterarConfig({ options: novas })
                       }}
                     />
@@ -183,17 +183,19 @@ export function FieldEditor({ campo, indice, total, onChange, onRemove, onMover 
                       label="Rótulo exibido"
                       size="small"
                       sx={{ flexGrow: 1 }}
-                      value={opt.label}
+                      value={opcao.label}
                       onChange={(e) => {
                         const novas = [...opcoes]
-                        novas[i] = { ...opt, label: e.target.value }
+                        novas[indice] = { ...opcao, label: e.target.value }
                         alterarConfig({ options: novas })
                       }}
                     />
                     <IconButton
                       size="small"
                       color="error"
-                      onClick={() => alterarConfig({ options: opcoes.filter((_, j) => j !== i) })}
+                      onClick={() =>
+                        alterarConfig({ options: opcoes.filter((_, outro) => outro !== indice) })
+                      }
                     >
                       <span aria-hidden>✕</span>
                     </IconButton>

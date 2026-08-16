@@ -106,41 +106,41 @@ export default function PublicFormPage() {
           enviar.mutate({
             path: { slug },
             body: {
-              answers: form.fields.map((f) => ({
-                field_id: f.id,
-                value: valores[f.id] ?? '',
+              answers: form.fields.map((campo) => ({
+                field_id: campo.id,
+                value: valores[campo.id] ?? '',
               })),
             },
           })
         }}
       >
         <Stack spacing={4}>
-          {form.fields.map((f, i) => (
+          {form.fields.map((campo, indice) => (
             // O número mora na margem, fora do fluxo de leitura, e some no
             // celular.
-            <Stack key={f.id} direction="row" spacing={2.5}>
+            <Stack key={campo.id} direction="row" spacing={2.5}>
               <Typography
                 aria-hidden
                 sx={{
                   display: { xs: 'none', sm: 'block' },
                   fontFamily: mono,
                   fontSize: 12.5,
-                  color: erros[f.id] ? cores.erro : cores.grafite,
+                  color: erros[campo.id] ? cores.erro : cores.grafite,
                   pt: 1.6,
                   width: 22,
                   flexShrink: 0,
                   textAlign: 'right',
                 }}
               >
-                {String(i + 1).padStart(2, '0')}
+                {String(indice + 1).padStart(2, '0')}
               </Typography>
 
               <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                 <FieldRenderer
-                  field={f}
-                  value={valores[f.id] ?? ''}
-                  onChange={(v) => setValores((atual) => ({ ...atual, [f.id]: v }))}
-                  error={erros[f.id]}
+                  field={campo}
+                  value={valores[campo.id] ?? ''}
+                  onChange={(valor) => setValores((atual) => ({ ...atual, [campo.id]: valor }))}
+                  error={erros[campo.id]}
                 />
               </Box>
             </Stack>

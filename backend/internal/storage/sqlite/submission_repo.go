@@ -27,12 +27,12 @@ var _ forms.PublicRepository = (*SubmissionRepo)(nil)
 // GetPublishedBySlug exige status = 'published' na query, então formulário em
 // draft cai no mesmo ErrFormNotFound de inexistente.
 func (r *SubmissionRepo) GetPublishedBySlug(ctx context.Context, slug string) (forms.Form, error) {
-	const q = `
+	const query = `
 		SELECT id, user_id, title, description, status, public_slug, published_at, created_at, updated_at, 0
 		FROM forms
 		WHERE public_slug = ? AND status = 'published'`
 
-	form, err := scanForm(r.db.QueryRowContext(ctx, q, slug))
+	form, err := scanForm(r.db.QueryRowContext(ctx, query, slug))
 	if err != nil {
 		return forms.Form{}, err
 	}
@@ -45,7 +45,7 @@ func (r *SubmissionRepo) GetPublishedBySlug(ctx context.Context, slug string) (f
 }
 
 // SaveSubmission grava a resposta e seus valores numa transação.
-func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission) error {
+func (r *SubmissionRepo) SaveSubmission(ctx context.Context, submissao forms.Submission) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("iniciar transação: %w", err)
@@ -54,7 +54,7 @@ func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission)
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO submissions (id, form_id, submitted_at) VALUES (?, ?, ?)`,
-		s.ID, s.FormID, formatTime(s.SubmittedAt),
+		submissao.ID, submissao.FormID, formatTime(submissao.SubmittedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("criar submissão: %w", err)
@@ -64,12 +64,12 @@ func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission)
 		INSERT INTO submission_answers (id, submission_id, field_id, field_label, value)
 		VALUES (?, ?, ?, ?, ?)`
 
-	for _, a := range s.Answers {
+	for _, resposta := range submissao.Answers {
 		// field_label é gravado agora, não lido por join depois: é o snapshot
 		// do que o visitante viu.
 		if _, err := tx.ExecContext(ctx, insert,
-			newID(), s.ID, a.FieldID, a.FieldLabel, a.Value); err != nil {
-			return fmt.Errorf("gravar resposta do campo %s: %w", a.FieldID, err)
+			newID(), submissao.ID, resposta.FieldID, resposta.FieldLabel, resposta.Value); err != nil {
+			return fmt.Errorf("gravar resposta do campo %s: %w", resposta.FieldID, err)
 		}
 	}
 
@@ -79,8 +79,8 @@ func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission)
 	return nil
 }
 
-// ListSubmissions devolve a página e o total, que vem de query separada porque
-// COUNT com LIMIT contaria só a página.
+// ListSubmissions devolve resposta página e o total, que vem de query separada porque
+// COUNT com LIMIT contaria só resposta página.
 func (r *SubmissionRepo) ListSubmissions(ctx context.Context, formID string, limit, offset int) ([]forms.Submission, int, error) {
 	var total int
 	if err := r.db.QueryRowContext(ctx,
@@ -88,14 +88,14 @@ func (r *SubmissionRepo) ListSubmissions(ctx context.Context, formID string, lim
 		return nil, 0, fmt.Errorf("contar respostas: %w", err)
 	}
 
-	const q = `
+	const query = `
 		SELECT id, submitted_at
 		FROM submissions
 		WHERE form_id = ?
 		ORDER BY submitted_at DESC
 		LIMIT ? OFFSET ?`
 
-	rows, err := r.db.QueryContext(ctx, q, formID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, formID, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listar respostas: %w", err)
 	}
@@ -105,17 +105,17 @@ func (r *SubmissionRepo) ListSubmissions(ctx context.Context, formID string, lim
 	ids := make([]string, 0)
 	for rows.Next() {
 		var (
-			s           forms.Submission
+			submissao   forms.Submission
 			submittedAt string
 		)
-		if err := rows.Scan(&s.ID, &submittedAt); err != nil {
+		if err := rows.Scan(&submissao.ID, &submittedAt); err != nil {
 			return nil, 0, fmt.Errorf("ler resposta: %w", err)
 		}
-		s.FormID = formID
-		s.SubmittedAt, _ = time.Parse(time.RFC3339, submittedAt)
-		s.Answers = make([]forms.Answer, 0)
-		list = append(list, s)
-		ids = append(ids, s.ID)
+		submissao.FormID = formID
+		submissao.SubmittedAt, _ = time.Parse(time.RFC3339, submittedAt)
+		submissao.Answers = make([]forms.Answer, 0)
+		list = append(list, submissao)
+		ids = append(ids, submissao.ID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("iterar respostas: %w", err)
@@ -146,11 +146,11 @@ func (r *SubmissionRepo) attachAnswers(ctx context.Context, list []forms.Submiss
 		args = append(args, id)
 	}
 
-	q := `SELECT submission_id, field_id, field_label, value
+	query := `SELECT submission_id, field_id, field_label, value
 	      FROM submission_answers
 	      WHERE submission_id IN (` + string(placeholders) + `)`
 
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("listar valores das respostas: %w", err)
 	}
@@ -160,12 +160,12 @@ func (r *SubmissionRepo) attachAnswers(ctx context.Context, list []forms.Submiss
 	for rows.Next() {
 		var (
 			submissionID string
-			a            forms.Answer
+			resposta     forms.Answer
 		)
-		if err := rows.Scan(&submissionID, &a.FieldID, &a.FieldLabel, &a.Value); err != nil {
+		if err := rows.Scan(&submissionID, &resposta.FieldID, &resposta.FieldLabel, &resposta.Value); err != nil {
 			return fmt.Errorf("ler valor: %w", err)
 		}
-		porSubmissao[submissionID] = append(porSubmissao[submissionID], a)
+		porSubmissao[submissionID] = append(porSubmissao[submissionID], resposta)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterar valores: %w", err)
@@ -180,11 +180,11 @@ func (r *SubmissionRepo) attachAnswers(ctx context.Context, list []forms.Submiss
 }
 
 func (r *SubmissionRepo) fieldsOf(ctx context.Context, formID string) ([]forms.Field, error) {
-	const q = `
+	const query = `
 		SELECT id, form_id, type, label, help_text, required, position, config
 		FROM form_fields WHERE form_id = ? ORDER BY position`
 
-	rows, err := r.db.QueryContext(ctx, q, formID)
+	rows, err := r.db.QueryContext(ctx, query, formID)
 	if err != nil {
 		return nil, fmt.Errorf("listar campos: %w", err)
 	}

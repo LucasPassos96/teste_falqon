@@ -83,9 +83,9 @@ export function FieldRenderer({ field, value, onChange, error, disabled }: Props
             value={value}
             onChange={(e) => onChange(e.target.value)}
           >
-            {(field.config?.options ?? []).map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
+            {(field.config?.options ?? []).map((opcao) => (
+              <MenuItem key={opcao.value} value={opcao.value}>
+                {opcao.label}
               </MenuItem>
             ))}
           </Select>

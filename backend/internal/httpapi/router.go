@@ -21,14 +21,14 @@ func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service
 		return nil, fmt.Errorf("carregar spec embutida: %w", err)
 	}
 
-	r := chi.NewRouter()
+	router := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(requestLogger(log))
-	r.Use(middleware.Recoverer)
-	r.Use(securityHeaders)
-	r.Use(limitBody)
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(requestLogger(log))
+	router.Use(middleware.Recoverer)
+	router.Use(securityHeaders)
+	router.Use(limitBody)
 
 	api := &API{auth: authSvc, forms: formSvc, public: publicSvc, google: googleAuth, publicBaseURL: cfg.PublicBaseURL}
 
@@ -47,12 +47,12 @@ func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service
 
 	gen.HandlerWithOptions(handler, gen.ChiServerOptions{
 		BaseURL:    "/api/v1",
-		BaseRouter: r,
+		BaseRouter: router,
 	})
 
-	r.Get("/openapi.json", handleSpec)
+	router.Get("/openapi.json", handleSpec)
 
-	return r, nil
+	return router, nil
 }
 
 func handleSpec(w http.ResponseWriter, _ *http.Request) {

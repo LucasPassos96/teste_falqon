@@ -81,9 +81,9 @@ func TestValidateValue(t *testing.T) {
 }
 
 func TestObrigatorioVazio(t *testing.T) {
-	f := campo(FieldShortText, true, FieldConfig{})
+	campoTeste := campo(FieldShortText, true, FieldConfig{})
 
-	_, err := ValidateSubmission([]Field{f}, []Answer{{FieldID: "f1", Value: "   "}})
+	_, err := ValidateSubmission([]Field{campoTeste}, []Answer{{FieldID: "f1", Value: "   "}})
 
 	var ve *ValidationError
 	if !errors.As(err, &ve) {
@@ -98,9 +98,9 @@ func TestObrigatorioVazio(t *testing.T) {
 // é o caso que se perde se a validação iterar sobre as respostas em vez de
 // sobre a definição.
 func TestObrigatorioAusenteDoPayload(t *testing.T) {
-	f := campo(FieldShortText, true, FieldConfig{})
+	campoTeste := campo(FieldShortText, true, FieldConfig{})
 
-	_, err := ValidateSubmission([]Field{f}, nil)
+	_, err := ValidateSubmission([]Field{campoTeste}, nil)
 
 	var ve *ValidationError
 	if !errors.As(err, &ve) {
@@ -113,9 +113,9 @@ func TestObrigatorioAusenteDoPayload(t *testing.T) {
 
 // Campo opcional vazio não pode ser reprovado pelas regras de faixa.
 func TestOpcionalVazioPulaAsRegras(t *testing.T) {
-	f := campo(FieldShortText, false, FieldConfig{MinLength: ptrInt(5)})
+	campoTeste := campo(FieldShortText, false, FieldConfig{MinLength: ptrInt(5)})
 
-	got, err := ValidateSubmission([]Field{f}, []Answer{{FieldID: "f1", Value: ""}})
+	got, err := ValidateSubmission([]Field{campoTeste}, []Answer{{FieldID: "f1", Value: ""}})
 	if err != nil {
 		t.Fatalf("não queria erro: %v", err)
 	}
@@ -125,9 +125,9 @@ func TestOpcionalVazioPulaAsRegras(t *testing.T) {
 }
 
 func TestCampoDeOutroFormularioERejeitado(t *testing.T) {
-	f := campo(FieldShortText, false, FieldConfig{})
+	campoTeste := campo(FieldShortText, false, FieldConfig{})
 
-	_, err := ValidateSubmission([]Field{f}, []Answer{
+	_, err := ValidateSubmission([]Field{campoTeste}, []Answer{
 		{FieldID: "f1", Value: "ok"},
 		{FieldID: "intruso", Value: "x"},
 	})

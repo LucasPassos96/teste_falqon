@@ -13,10 +13,10 @@ import (
 // no-referrer evita vazar o slug para sites externos.
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h := w.Header()
-		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("X-Frame-Options", "DENY")
-		h.Set("Referrer-Policy", "no-referrer")
+		headers := w.Header()
+		headers.Set("X-Content-Type-Options", "nosniff")
+		headers.Set("X-Frame-Options", "DENY")
+		headers.Set("Referrer-Policy", "no-referrer")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -38,20 +38,20 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// O http.ResponseWriter não expõe o status depois de escrito.
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-			start := time.Now()
+			wrapped := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			inicio := time.Now()
 
 			defer func() {
 				log.Info("requisição",
 					"metodo", r.Method,
 					"rota", r.URL.Path,
-					"status", ww.Status(),
-					"duracao", time.Since(start).String(),
+					"status", wrapped.Status(),
+					"duracao", time.Since(inicio).String(),
 					"request_id", middleware.GetReqID(r.Context()),
 				)
 			}()
 
-			next.ServeHTTP(ww, r)
+			next.ServeHTTP(wrapped, r)
 		})
 	}
 }

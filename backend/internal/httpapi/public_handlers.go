@@ -18,8 +18,8 @@ func (a *API) GetPublicForm(ctx context.Context, req gen.GetPublicFormRequestObj
 	// PublicForm é um schema distinto de Form: não carrega id interno, dono,
 	// contagem de respostas nem timestamps.
 	fields := make([]gen.PublicField, 0, len(form.Fields))
-	for _, f := range form.Fields {
-		pf, err := toPublicField(f)
+	for _, campo := range form.Fields {
+		pf, err := toPublicField(campo)
 		if err != nil {
 			return nil, err
 		}
@@ -76,8 +76,8 @@ func (a *API) ListSubmissions(ctx context.Context, req gen.ListSubmissionsReques
 	}
 
 	items := make([]gen.Submission, 0, len(list))
-	for _, s := range list {
-		g, err := toGenSubmission(s)
+	for _, submissao := range list {
+		g, err := toGenSubmission(submissao)
 		if err != nil {
 			return nil, err
 		}
@@ -87,44 +87,44 @@ func (a *API) ListSubmissions(ctx context.Context, req gen.ListSubmissionsReques
 	return gen.ListSubmissions200JSONResponse{Items: items, Total: total}, nil
 }
 
-func toPublicField(f forms.Field) (gen.PublicField, error) {
-	id, err := uuid.Parse(f.ID)
+func toPublicField(campo forms.Field) (gen.PublicField, error) {
+	id, err := uuid.Parse(campo.ID)
 	if err != nil {
 		return gen.PublicField{}, err
 	}
-	config := toGenConfig(f.Config)
+	config := toGenConfig(campo.Config)
 	return gen.PublicField{
 		Id:       id,
-		Type:     gen.FieldType(f.Type),
-		Label:    f.Label,
-		HelpText: &f.HelpText,
-		Required: f.Required,
+		Type:     gen.FieldType(campo.Type),
+		Label:    campo.Label,
+		HelpText: &campo.HelpText,
+		Required: campo.Required,
 		Config:   &config,
 	}, nil
 }
 
-func toGenSubmission(s forms.Submission) (gen.Submission, error) {
-	id, err := uuid.Parse(s.ID)
+func toGenSubmission(submissao forms.Submission) (gen.Submission, error) {
+	id, err := uuid.Parse(submissao.ID)
 	if err != nil {
 		return gen.Submission{}, err
 	}
 
-	answers := make([]gen.SubmissionAnswer, 0, len(s.Answers))
-	for _, a := range s.Answers {
-		fieldID, err := uuid.Parse(a.FieldID)
+	answers := make([]gen.SubmissionAnswer, 0, len(submissao.Answers))
+	for _, resposta := range submissao.Answers {
+		fieldID, err := uuid.Parse(resposta.FieldID)
 		if err != nil {
 			return gen.Submission{}, err
 		}
 		answers = append(answers, gen.SubmissionAnswer{
 			FieldId:    fieldID,
-			FieldLabel: a.FieldLabel,
-			Value:      a.Value,
+			FieldLabel: resposta.FieldLabel,
+			Value:      resposta.Value,
 		})
 	}
 
 	return gen.Submission{
 		Id:          id,
-		SubmittedAt: s.SubmittedAt,
+		SubmittedAt: submissao.SubmittedAt,
 		Answers:     answers,
 	}, nil
 }

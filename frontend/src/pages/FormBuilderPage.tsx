@@ -92,15 +92,15 @@ export default function FormBuilderPage() {
 
   const publicado = form.status === 'published'
 
-  const alterarCampo = (i: number, campo: FieldInput) =>
-    setCampos((atual) => atual.map((c, j) => (j === i ? campo : c)))
+  const alterarCampo = (indice: number, campo: FieldInput) =>
+    setCampos((atual) => atual.map((atualCampo, i) => (i === indice ? campo : atualCampo)))
 
-  const moverCampo = (i: number, direcao: -1 | 1) =>
+  const moverCampo = (indice: number, direcao: -1 | 1) =>
     setCampos((atual) => {
-      const destino = i + direcao
+      const destino = indice + direcao
       if (destino < 0 || destino >= atual.length) return atual
       const copia = [...atual]
-      ;[copia[i], copia[destino]] = [copia[destino], copia[i]]
+      ;[copia[indice], copia[destino]] = [copia[destino], copia[indice]]
       return copia
     })
 
@@ -249,15 +249,18 @@ export default function FormBuilderPage() {
       )}
 
       <Stack spacing={2}>
-        {campos.map((campo, i) => (
-          <Box key={i} sx={{ opacity: publicado ? 0.6 : 1, pointerEvents: publicado ? 'none' : 'auto' }}>
+        {campos.map((campo, indice) => (
+          <Box
+            key={indice}
+            sx={{ opacity: publicado ? 0.6 : 1, pointerEvents: publicado ? 'none' : 'auto' }}
+          >
             <FieldEditor
               campo={campo}
-              indice={i}
+              indice={indice}
               total={campos.length}
-              onChange={(c) => alterarCampo(i, c)}
-              onRemove={() => setCampos((atual) => atual.filter((_, j) => j !== i))}
-              onMover={(d) => moverCampo(i, d)}
+              onChange={(alterado) => alterarCampo(indice, alterado)}
+              onRemove={() => setCampos((atual) => atual.filter((_, outro) => outro !== indice))}
+              onMover={(direcao) => moverCampo(indice, direcao)}
             />
           </Box>
         ))}
@@ -316,12 +319,14 @@ export default function FormBuilderPage() {
           <Card variant="outlined">
             <CardContent>
               <Stack spacing={2}>
-                {(form.fields ?? []).map((f) => (
+                {(form.fields ?? []).map((campo) => (
                   <FieldRenderer
-                    key={f.id}
-                    field={f}
-                    value={preview[f.id] ?? ''}
-                    onChange={(v) => setPreview((p) => ({ ...p, [f.id]: v }))}
+                    key={campo.id}
+                    field={campo}
+                    value={preview[campo.id] ?? ''}
+                    onChange={(valor) =>
+                      setPreview((atual) => ({ ...atual, [campo.id]: valor }))
+                    }
                   />
                 ))}
               </Stack>

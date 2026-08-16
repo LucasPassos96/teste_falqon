@@ -80,11 +80,11 @@ func (s *Service) Update(ctx context.Context, formID, ownerID string, title, des
 	}
 
 	if title != nil {
-		t := strings.TrimSpace(*title)
-		if t == "" {
+		novoTitulo := strings.TrimSpace(*title)
+		if novoTitulo == "" {
 			return Form{}, ErrTitleRequired
 		}
-		form.Title = t
+		form.Title = novoTitulo
 	}
 	if description != nil {
 		form.Description = strings.TrimSpace(*description)

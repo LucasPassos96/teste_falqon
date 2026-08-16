@@ -51,9 +51,9 @@ export default function SubmissionsPage() {
   // As colunas vêm dos rótulos gravados nas respostas, não da definição atual:
   // um campo renomeado depois não reescreve o passado.
   const colunas: string[] = []
-  for (const s of data.items) {
-    for (const a of s.answers) {
-      if (!colunas.includes(a.field_label)) colunas.push(a.field_label)
+  for (const submissao of data.items) {
+    for (const resposta of submissao.answers) {
+      if (!colunas.includes(resposta.field_label)) colunas.push(resposta.field_label)
     }
   }
 
@@ -106,18 +106,18 @@ export default function SubmissionsPage() {
               <TableHead>
                 <TableRow>
                   <TableCell>Enviada em</TableCell>
-                  {colunas.map((c) => (
-                    <TableCell key={c}>{c}</TableCell>
+                  {colunas.map((coluna) => (
+                    <TableCell key={coluna}>{coluna}</TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
-                {data.items.map((s) => {
+                {data.items.map((submissao) => {
                   const porRotulo = Object.fromEntries(
-                    s.answers.map((a) => [a.field_label, a.value]),
+                    submissao.answers.map((resposta) => [resposta.field_label, resposta.value]),
                   )
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow key={submissao.id}>
                       <TableCell
                         sx={{
                           whiteSpace: 'nowrap',
@@ -126,12 +126,12 @@ export default function SubmissionsPage() {
                           color: cores.tintaFraca,
                         }}
                       >
-                        {new Date(s.submitted_at).toLocaleString('pt-BR')}
+                        {new Date(submissao.submitted_at).toLocaleString('pt-BR')}
                       </TableCell>
-                      {colunas.map((c) => (
+                      {colunas.map((coluna) => (
                         // Passa por JSX, então o React escapa: conteúdo de
                         // visitante anônimo aparece como texto nesta tela.
-                        <TableCell key={c}>{porRotulo[c] ?? '—'}</TableCell>
+                        <TableCell key={coluna}>{porRotulo[coluna] ?? '—'}</TableCell>
                       ))}
                     </TableRow>
                   )
