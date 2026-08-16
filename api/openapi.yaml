@@ -129,6 +129,67 @@ paths:
               schema:
                 type: string
 
+  # Os dois endpoints do Google são fluxos de NAVEGADOR: respondem 302 e não
+  # são chamados pelo client TypeScript. Ficam na spec porque fazem parte do
+  # contrato da API, e o front só precisa de um link para /auth/google.
+  /auth/google:
+    get:
+      operationId: startGoogleLogin
+      summary: Inicia o login com Google
+      description: |
+        Sempre responde 302, porque é navegação de navegador. Sem credenciais
+        configuradas, redireciona para a tela de login do frontend com
+        `?erro=google_nao_configurado` em vez de devolver JSON — o visitante
+        nunca vê um corpo de erro cru na barra de endereços.
+      security: []
+      responses:
+        "302":
+          description: Redireciona para a tela de consentimento do Google
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              description: Cookie de curta duração com o parâmetro state
+              schema:
+                type: string
+
+  /auth/google/callback:
+    get:
+      operationId: googleCallback
+      summary: Retorno do consentimento do Google
+      security: []
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+        # O state gravado no navegador ao iniciar o fluxo. Declarado aqui para
+        # o gerador entregá-lo tipado ao handler, em vez de o handler ir buscar
+        # no request cru.
+        - name: oauth_state
+          in: cookie
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Define o cookie de sessão e redireciona para o frontend
+          headers:
+            Location:
+              schema:
+                type: string
+            Set-Cookie:
+              schema:
+                type: string
+
   /auth/me:
     get:
       operationId: getCurrentUser

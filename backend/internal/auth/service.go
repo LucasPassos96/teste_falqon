@@ -37,6 +37,8 @@ type UserRepository interface {
 	Create(ctx context.Context, u User) error
 	FindByEmail(ctx context.Context, email string) (User, error)
 	FindByID(ctx context.Context, id string) (User, error)
+	// LinkGoogleID vincula uma conta Google a um usuário que já existe.
+	LinkGoogleID(ctx context.Context, userID, googleID string) error
 }
 
 type Service struct {

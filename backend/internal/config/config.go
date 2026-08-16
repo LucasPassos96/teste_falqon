@@ -31,6 +31,21 @@ type Database struct {
 type Auth struct {
 	JWTSecret  string        `mapstructure:"jwt_secret"`
 	SessionTTL time.Duration `mapstructure:"session_ttl"`
+	Google     Google        `mapstructure:"google"`
+}
+
+type Google struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
+// Configured diz se o login com Google pode ser oferecido. Sem credenciais o
+// servidor sobe assim mesmo e o endpoint responde 501: o app continua
+// utilizável sem configurar o Google, o que é essencial para quem clona o
+// repositório só para avaliá-lo.
+func (g Google) Configured() bool {
+	return g.ClientID != "" && g.ClientSecret != "" && g.RedirectURL != ""
 }
 
 // jwtSecretPlaceholder é o valor que vem no config.example.yaml. O servidor
@@ -43,21 +58,27 @@ const jwtSecretPlaceholder = "troque-isto-por-um-segredo-de-no-minimo-32-bytes"
 const jwtSecretMinBytes = 32
 
 var defaults = map[string]any{
-	"address":          "localhost:8080",
-	"public_base_url":  "http://localhost:5173",
-	"database.path":    "./formbuilder.db",
-	"auth.jwt_secret":  "",
-	"auth.session_ttl": "24h",
+	"address":                   "localhost:8080",
+	"public_base_url":           "http://localhost:5173",
+	"database.path":             "./formbuilder.db",
+	"auth.jwt_secret":           "",
+	"auth.session_ttl":          "24h",
+	"auth.google.client_id":     "",
+	"auth.google.client_secret": "",
+	"auth.google.redirect_url":  "http://localhost:8080/api/v1/auth/google/callback",
 }
 
 // flagFor mapeia chave de config para nome de flag: snake_case no YAML,
 // kebab-case na linha de comando.
 var flagFor = map[string]string{
-	"address":          "address",
-	"public_base_url":  "public-base-url",
-	"database.path":    "db-path",
-	"auth.jwt_secret":  "jwt-secret",
-	"auth.session_ttl": "session-ttl",
+	"address":                   "address",
+	"public_base_url":           "public-base-url",
+	"database.path":             "db-path",
+	"auth.jwt_secret":           "jwt-secret",
+	"auth.session_ttl":          "session-ttl",
+	"auth.google.client_id":     "google-client-id",
+	"auth.google.client_secret": "google-client-secret",
+	"auth.google.redirect_url":  "google-redirect-url",
 }
 
 // RegisterFlags declara as flags de configuração. Os defaults ficam no mapa
@@ -68,6 +89,9 @@ func RegisterFlags(fs *pflag.FlagSet) {
 	fs.String("db-path", "", `caminho do arquivo SQLite (default "./formbuilder.db")`)
 	fs.String("jwt-secret", "", "segredo de assinatura da sessão, mínimo 32 bytes (obrigatório)")
 	fs.String("session-ttl", "", `validade da sessão (default "24h")`)
+	fs.String("google-client-id", "", "Client ID do Google OAuth (opcional)")
+	fs.String("google-client-secret", "", "Client secret do Google OAuth (opcional)")
+	fs.String("google-redirect-url", "", "URI de redirecionamento registrada no Google")
 }
 
 func Load(path string, fs *pflag.FlagSet) (*Config, error) {

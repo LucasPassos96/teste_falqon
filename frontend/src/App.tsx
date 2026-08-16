@@ -1,22 +1,58 @@
-import { useQuery } from '@tanstack/react-query'
+import { Route, Routes } from 'react-router-dom'
 
-import { getHealthOptions } from './api/gen/@tanstack/react-query.gen'
+import { RequireAuth } from './auth/RequireAuth'
+import { AppLayout } from './components/AppLayout'
+import FormBuilderPage from './pages/FormBuilderPage'
+import FormListPage from './pages/FormListPage'
+import LoginPage from './pages/LoginPage'
+import PublicFormPage from './pages/PublicFormPage'
+import SubmissionsPage from './pages/SubmissionsPage'
 
-// Prova do pipeline: este hook e o tipo de `data` vêm de src/api/gen, que é
-// gerado a partir de api/openapi.yaml — a mesma spec que gera o servidor Go.
-export default function App() {
-  const { data, isPending, error } = useQuery(getHealthOptions())
-
+/** Envolve a rota no layout administrativo e no guard de sessão. */
+function Privada({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1>Form Builder</h1>
-      {isPending && <p>Consultando a API…</p>}
-      {error && <p>API indisponível: {error.message}</p>}
-      {data && (
-        <p>
-          A API respondeu: <strong>{data.status}</strong>
-        </p>
-      )}
-    </main>
+    <RequireAuth>
+      <AppLayout>{children}</AppLayout>
+    </RequireAuth>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Públicas */}
+      <Route path="/login" element={<LoginPage />} />
+      {/* A rota do visitante fica fora do layout administrativo de propósito:
+          ela não tem barra de navegação nem nome de usuário. */}
+      <Route path="/f/:slug" element={<PublicFormPage />} />
+
+      {/* Administrativas */}
+      <Route
+        path="/"
+        element={
+          <Privada>
+            <FormListPage />
+          </Privada>
+        }
+      />
+      <Route
+        path="/forms/:formId"
+        element={
+          <Privada>
+            <FormBuilderPage />
+          </Privada>
+        }
+      />
+      <Route
+        path="/forms/:formId/submissions"
+        element={
+          <Privada>
+            <SubmissionsPage />
+          </Privada>
+        }
+      />
+
+      <Route path="*" element={<LoginPage />} />
+    </Routes>
   )
 }

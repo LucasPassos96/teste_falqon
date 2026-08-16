@@ -494,6 +494,65 @@ task test
 
 ---
 
+## Frontend
+
+React 19 + TypeScript, com Vite, MUI, React Router e TanStack Query. Todo o
+código que fala com a API é gerado a partir do `openapi.yaml` — não há um
+`fetch` escrito à mão no projeto.
+
+| Rota | Tela | Acesso |
+|---|---|---|
+| `/login` | Entrar e criar conta | público |
+| `/` | Lista de formulários | sessão |
+| `/forms/:id` | Builder de campos, com preview | sessão |
+| `/forms/:id/submissions` | Respostas recebidas | sessão |
+| `/f/:slug` | Formulário público | público |
+
+### As decisões, e o porquê de cada uma
+
+**O front não sabe se está logado — ele pergunta.** O cookie de sessão é
+`HttpOnly`, então o JavaScript não consegue lê-lo nem decodificar o token, que
+é exatamente o objetivo. O estado de sessão vem de `GET /auth/me` via TanStack
+Query: enquanto carrega, splash; 401, redireciona. Isso também evita o *flash*
+de interface administrativa antes do redirecionamento.
+
+**O guard de rota é UX, não segurança.** `RequireAuth` evita que a pessoa veja
+uma tela quebrada — nada além disso. Qualquer um edita o JavaScript no
+navegador e "entra" na rota administrativa; ela renderiza vazia, porque quem
+protege é o middleware no Go. Segurança é server-side; o front cuida da
+experiência.
+
+**`queryClient.clear()` no logout.** Sem isso o cache do TanStack Query
+sobrevive: o próximo login na mesma máquina exibiria por um instante os
+formulários do usuário anterior. É vazamento real entre contas num computador
+compartilhado, e é uma linha.
+
+**O `FieldRenderer` é compartilhado** entre o preview do builder e a página
+pública. Um `switch` num arquivo só decide como cada tipo vira componente MUI —
+se houvesse duas cópias, o preview acabaria mentindo sobre o formulário real.
+
+**O array de campos do builder é estado local, não estado de servidor.** O
+usuário reordena, renomeia e remove livremente, e só ao clicar em salvar isso
+vira uma requisição. É a contraparte do `PUT` da lista inteira no backend.
+
+**Reordenação por setas ↑ ↓, não drag-and-drop.** Previsível, acessível por
+teclado, e sem arrastar uma biblioteca inteira para dentro do bundle.
+
+**Nada de `dangerouslySetInnerHTML` no projeto.** Tudo que passa por JSX sai
+como texto, não como HTML. O ponto sensível é a tela de respostas do admin, onde
+conteúdo de um visitante anônimo é renderizado dentro de uma sessão
+privilegiada: é ali que uma XSS armazenada morderia.
+
+**Erros renderizados de forma genérica.** A tela mostra a mensagem tratada do
+envelope de erro da API, nunca o payload cru — nada de stack trace ou detalhe
+de banco.
+
+**Nenhum segredo no bundle.** Toda variável `VITE_*` é embutida no JavaScript e
+é pública. Não existe nenhuma no projeto: a URL da API é relativa (`/api/v1`) e
+o proxy do Vite resolve o resto.
+
+---
+
 ## Decisões de arquitetura
 
 Registradas aqui conforme são tomadas, com o porquê e a alternativa descartada.

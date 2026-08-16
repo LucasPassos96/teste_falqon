@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateFormData, CreateFormErrors, CreateFormResponses, DeleteFormData, DeleteFormErrors, DeleteFormResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetFormData, GetFormErrors, GetFormResponses, GetHealthData, GetHealthResponses, GetPublicFormData, GetPublicFormErrors, GetPublicFormResponses, ListFormsData, ListFormsErrors, ListFormsResponses, ListSubmissionsData, ListSubmissionsErrors, ListSubmissionsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PublishFormData, PublishFormErrors, PublishFormResponses, RegisterData, RegisterErrors, RegisterResponses, ReplaceFormFieldsData, ReplaceFormFieldsErrors, ReplaceFormFieldsResponses, SubmitPublicFormData, SubmitPublicFormErrors, SubmitPublicFormResponses, UnpublishFormData, UnpublishFormErrors, UnpublishFormResponses, UpdateFormData, UpdateFormErrors, UpdateFormResponses } from './types.gen';
+import type { CreateFormData, CreateFormErrors, CreateFormResponses, DeleteFormData, DeleteFormErrors, DeleteFormResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetFormData, GetFormErrors, GetFormResponses, GetHealthData, GetHealthResponses, GetPublicFormData, GetPublicFormErrors, GetPublicFormResponses, GoogleCallbackData, ListFormsData, ListFormsErrors, ListFormsResponses, ListSubmissionsData, ListSubmissionsErrors, ListSubmissionsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PublishFormData, PublishFormErrors, PublishFormResponses, RegisterData, RegisterErrors, RegisterResponses, ReplaceFormFieldsData, ReplaceFormFieldsErrors, ReplaceFormFieldsResponses, StartGoogleLoginData, SubmitPublicFormData, SubmitPublicFormErrors, SubmitPublicFormResponses, UnpublishFormData, UnpublishFormErrors, UnpublishFormResponses, UpdateFormData, UpdateFormErrors, UpdateFormResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -59,6 +59,22 @@ export const logout = <ThrowOnError extends boolean = false>(options?: Options<L
     url: '/auth/logout',
     ...options
 });
+
+/**
+ * Inicia o login com Google
+ *
+ * Sempre responde 302, porque é navegação de navegador. Sem credenciais
+ * configuradas, redireciona para a tela de login do frontend com
+ * `?erro=google_nao_configurado` em vez de devolver JSON — o visitante
+ * nunca vê um corpo de erro cru na barra de endereços.
+ *
+ */
+export const startGoogleLogin = <ThrowOnError extends boolean = false>(options?: Options<StartGoogleLoginData, ThrowOnError>) => (options?.client ?? client).get<unknown, unknown, ThrowOnError>({ url: '/auth/google', ...options });
+
+/**
+ * Retorno do consentimento do Google
+ */
+export const googleCallback = <ThrowOnError extends boolean = false>(options?: Options<GoogleCallbackData, ThrowOnError>) => (options?.client ?? client).get<unknown, unknown, ThrowOnError>({ url: '/auth/google/callback', ...options });
 
 /**
  * Usuário da sessão atual

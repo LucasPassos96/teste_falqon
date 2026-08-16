@@ -200,6 +200,14 @@ type Unauthorized = Error
 // ValidationFailed defines model for ValidationFailed.
 type ValidationFailed = ValidationError
 
+// GoogleCallbackParams defines parameters for GoogleCallback.
+type GoogleCallbackParams struct {
+	Code       *string `form:"code,omitempty" json:"code,omitempty"`
+	State      *string `form:"state,omitempty" json:"state,omitempty"`
+	Error      *string `form:"error,omitempty" json:"error,omitempty"`
+	OauthState *string `form:"oauth_state,omitempty" json:"oauth_state,omitempty"`
+}
+
 // LoginJSONBody defines parameters for Login.
 type LoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -262,6 +270,12 @@ type SubmitPublicFormJSONRequestBody SubmitPublicFormJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// StartGoogleLogin Inicia o login com Google
+	// (GET /auth/google)
+	StartGoogleLogin(w http.ResponseWriter, r *http.Request)
+	// GoogleCallback Retorno do consentimento do Google
+	// (GET /auth/google/callback)
+	GoogleCallback(w http.ResponseWriter, r *http.Request, params GoogleCallbackParams)
 	// Login Autentica com e-mail e senha
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -315,6 +329,18 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// StartGoogleLogin Inicia o login com Google
+// (GET /auth/google)
+func (_ Unimplemented) StartGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GoogleCallback Retorno do consentimento do Google
+// (GET /auth/google/callback)
+func (_ Unimplemented) GoogleCallback(w http.ResponseWriter, r *http.Request, params GoogleCallbackParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // Login Autentica com e-mail e senha
 // (POST /auth/login)
@@ -420,6 +446,94 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// StartGoogleLogin operation middleware
+func (siw *ServerInterfaceWrapper) StartGoogleLogin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartGoogleLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GoogleCallback operation middleware
+func (siw *ServerInterfaceWrapper) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GoogleCallbackParams
+
+	// ------------- Optional query parameter "code" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "code", r.URL.Query(), &params.Code, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "code"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "error" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "error", r.URL.Query(), &params.Error, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "error"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "error", Err: err})
+		}
+		return
+	}
+
+	{
+		var cookie *http.Cookie
+
+		if cookie, err = r.Cookie("oauth_state"); err == nil {
+			var value string
+			err = runtime.BindStyledParameterWithOptions("simple", "oauth_state", cookie.Value, &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationCookie, Explode: true, Required: false, Type: "string", Format: ""})
+			if err != nil {
+				siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "oauth_state", Err: err})
+				return
+			}
+			params.OauthState = &value
+
+		}
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GoogleCallback(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
@@ -908,6 +1022,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/logout", wrapper.Logout)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/google", wrapper.StartGoogleLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/google/callback", wrapper.GoogleCallback)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	})
 	r.Group(func(r chi.Router) {
@@ -954,6 +1074,61 @@ type NotFoundJSONResponse Error
 type UnauthorizedJSONResponse Error
 
 type ValidationFailedJSONResponse ValidationError
+
+type StartGoogleLoginRequestObject struct {
+}
+
+type StartGoogleLoginResponseObject interface {
+	VisitStartGoogleLoginResponse(w http.ResponseWriter) error
+}
+
+type StartGoogleLogin302ResponseHeaders struct {
+	Location  *string
+	SetCookie *string
+}
+
+type StartGoogleLogin302Response struct {
+	Headers StartGoogleLogin302ResponseHeaders
+}
+
+func (response StartGoogleLogin302Response) VisitStartGoogleLoginResponse(w http.ResponseWriter) error {
+	if response.Headers.Location != nil {
+		w.Header().Set("Location", fmt.Sprint(*response.Headers.Location))
+	}
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(302)
+	return nil
+}
+
+type GoogleCallbackRequestObject struct {
+	Params GoogleCallbackParams
+}
+
+type GoogleCallbackResponseObject interface {
+	VisitGoogleCallbackResponse(w http.ResponseWriter) error
+}
+
+type GoogleCallback302ResponseHeaders struct {
+	Location  *string
+	SetCookie *string
+}
+
+type GoogleCallback302Response struct {
+	Headers GoogleCallback302ResponseHeaders
+}
+
+func (response GoogleCallback302Response) VisitGoogleCallbackResponse(w http.ResponseWriter) error {
+	if response.Headers.Location != nil {
+		w.Header().Set("Location", fmt.Sprint(*response.Headers.Location))
+	}
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(302)
+	return nil
+}
 
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
@@ -1728,6 +1903,12 @@ func (response SubmitPublicForm422JSONResponse) VisitSubmitPublicFormResponse(w 
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// StartGoogleLogin Inicia o login com Google
+	// (GET /auth/google)
+	StartGoogleLogin(ctx context.Context, request StartGoogleLoginRequestObject) (StartGoogleLoginResponseObject, error)
+	// GoogleCallback Retorno do consentimento do Google
+	// (GET /auth/google/callback)
+	GoogleCallback(ctx context.Context, request GoogleCallbackRequestObject) (GoogleCallbackResponseObject, error)
 	// Login Autentica com e-mail e senha
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -1815,6 +1996,56 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// StartGoogleLogin operation middleware
+func (sh *strictHandler) StartGoogleLogin(w http.ResponseWriter, r *http.Request) {
+	var request StartGoogleLoginRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartGoogleLogin(ctx, request.(StartGoogleLoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartGoogleLogin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartGoogleLoginResponseObject); ok {
+		if err := validResponse.VisitStartGoogleLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GoogleCallback operation middleware
+func (sh *strictHandler) GoogleCallback(w http.ResponseWriter, r *http.Request, params GoogleCallbackParams) {
+	var request GoogleCallbackRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GoogleCallback(ctx, request.(GoogleCallbackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GoogleCallback")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GoogleCallbackResponseObject); ok {
+		if err := validResponse.VisitGoogleCallbackResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // Login operation middleware
@@ -2267,48 +2498,53 @@ func (sh *strictHandler) SubmitPublicForm(w http.ResponseWriter, r *http.Request
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

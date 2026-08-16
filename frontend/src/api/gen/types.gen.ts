@@ -200,6 +200,24 @@ export type LogoutResponses = {
 
 export type LogoutResponse = LogoutResponses[keyof LogoutResponses];
 
+export type StartGoogleLoginData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/google';
+};
+
+export type GoogleCallbackData = {
+    body?: never;
+    path?: never;
+    query?: {
+        code?: string;
+        state?: string;
+        error?: string;
+    };
+    url: '/auth/google/callback';
+};
+
 export type GetCurrentUserData = {
     body?: never;
     path?: never;

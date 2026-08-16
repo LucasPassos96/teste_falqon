@@ -61,6 +61,21 @@ func (r *UserRepo) FindByID(ctx context.Context, id string) (auth.User, error) {
 	return r.scanOne(r.db.QueryRowContext(ctx, q, id))
 }
 
+func (r *UserRepo) LinkGoogleID(ctx context.Context, userID, googleID string) error {
+	const q = `UPDATE users SET google_id = ?, updated_at = ? WHERE id = ?`
+
+	_, err := r.db.ExecContext(ctx, q, googleID, formatTime(time.Now().UTC()), userID)
+	if err != nil {
+		// O UNIQUE de google_id impede que a mesma conta Google seja vinculada
+		// a dois usuários diferentes.
+		if isUniqueViolation(err) {
+			return auth.ErrEmailTaken
+		}
+		return fmt.Errorf("vincular conta Google: %w", err)
+	}
+	return nil
+}
+
 func (r *UserRepo) scanOne(row *sql.Row) (auth.User, error) {
 	var (
 		u                  auth.User

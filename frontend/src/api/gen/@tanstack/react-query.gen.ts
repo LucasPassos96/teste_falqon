@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { createForm, deleteForm, getCurrentUser, getForm, getHealth, getPublicForm, listForms, listSubmissions, login, logout, type Options, publishForm, register, replaceFormFields, submitPublicForm, unpublishForm, updateForm } from '../sdk.gen';
-import type { CreateFormData, CreateFormError, CreateFormResponse, DeleteFormData, DeleteFormError, DeleteFormResponse, GetCurrentUserData, GetCurrentUserError, GetCurrentUserResponse, GetFormData, GetFormError, GetFormResponse, GetHealthData, GetHealthResponse, GetPublicFormData, GetPublicFormError, GetPublicFormResponse, ListFormsData, ListFormsError, ListFormsResponse, ListSubmissionsData, ListSubmissionsError, ListSubmissionsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, PublishFormData, PublishFormError, PublishFormResponse, RegisterData, RegisterError, RegisterResponse, ReplaceFormFieldsData, ReplaceFormFieldsError, ReplaceFormFieldsResponse, SubmitPublicFormData, SubmitPublicFormError, UnpublishFormData, UnpublishFormError, UnpublishFormResponse, UpdateFormData, UpdateFormError, UpdateFormResponse } from '../types.gen';
+import { createForm, deleteForm, getCurrentUser, getForm, getHealth, getPublicForm, googleCallback, listForms, listSubmissions, login, logout, type Options, publishForm, register, replaceFormFields, startGoogleLogin, submitPublicForm, unpublishForm, updateForm } from '../sdk.gen';
+import type { CreateFormData, CreateFormError, CreateFormResponse, DeleteFormData, DeleteFormError, DeleteFormResponse, GetCurrentUserData, GetCurrentUserError, GetCurrentUserResponse, GetFormData, GetFormError, GetFormResponse, GetHealthData, GetHealthResponse, GetPublicFormData, GetPublicFormError, GetPublicFormResponse, GoogleCallbackData, ListFormsData, ListFormsError, ListFormsResponse, ListSubmissionsData, ListSubmissionsError, ListSubmissionsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, PublishFormData, PublishFormError, PublishFormResponse, RegisterData, RegisterError, RegisterResponse, ReplaceFormFieldsData, ReplaceFormFieldsError, ReplaceFormFieldsResponse, StartGoogleLoginData, SubmitPublicFormData, SubmitPublicFormError, UnpublishFormData, UnpublishFormError, UnpublishFormResponse, UpdateFormData, UpdateFormError, UpdateFormResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -107,6 +107,48 @@ export const logoutMutation = (options?: Partial<Options<LogoutData>>): UseMutat
     };
     return mutationOptions;
 };
+
+export const startGoogleLoginQueryKey = (options?: Options<StartGoogleLoginData>) => createQueryKey('startGoogleLogin', options);
+
+/**
+ * Inicia o login com Google
+ *
+ * Sempre responde 302, porque é navegação de navegador. Sem credenciais
+ * configuradas, redireciona para a tela de login do frontend com
+ * `?erro=google_nao_configurado` em vez de devolver JSON — o visitante
+ * nunca vê um corpo de erro cru na barra de endereços.
+ *
+ */
+export const startGoogleLoginOptions = (options?: Options<StartGoogleLoginData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof startGoogleLoginQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await startGoogleLogin({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: startGoogleLoginQueryKey(options)
+});
+
+export const googleCallbackQueryKey = (options?: Options<GoogleCallbackData>) => createQueryKey('googleCallback', options);
+
+/**
+ * Retorno do consentimento do Google
+ */
+export const googleCallbackOptions = (options?: Options<GoogleCallbackData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof googleCallbackQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await googleCallback({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: googleCallbackQueryKey(options)
+});
 
 export const getCurrentUserQueryKey = (options?: Options<GetCurrentUserData>) => createQueryKey('getCurrentUser', options);
 

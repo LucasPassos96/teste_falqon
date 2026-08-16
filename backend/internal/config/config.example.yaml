@@ -46,3 +46,31 @@ auth:
   #   env:  FB_AUTH_SESSION_TTL
   #   flag: --session-ttl
   session_ttl: "24h"
+
+  # Login com Google. OPCIONAL — deixando vazio, o servidor sobe normalmente,
+  # loga um aviso, e o botão "Entrar com Google" avisa que não está
+  # configurado. Todo o resto da aplicação funciona com e-mail e senha.
+  #
+  # Para habilitar, crie um "ID do cliente OAuth" do tipo Aplicativo da Web em
+  # https://console.cloud.google.com/apis/credentials e registre EXATAMENTE
+  # esta URI de redirecionamento:
+  #
+  #     http://localhost:8080/api/v1/auth/google/callback
+  #
+  # Qualquer diferença (barra no fim, 127.0.0.1 em vez de localhost, https)
+  # faz o Google recusar com redirect_uri_mismatch.
+  google:
+    #   env:  FB_AUTH_GOOGLE_CLIENT_ID
+    #   flag: --google-client-id
+    client_id: ""
+    # Nunca chega ao navegador nem ao bundle do frontend: a troca do código
+    # por token acontece no servidor.
+    #   env:  FB_AUTH_GOOGLE_CLIENT_SECRET
+    #   flag: --google-client-secret
+    client_secret: ""
+    # Fixo e registrado no console do Google. Não é aceito por query param —
+    # isso viraria open redirect, e o código de autorização seria entregue no
+    # domínio do atacante.
+    #   env:  FB_AUTH_GOOGLE_REDIRECT_URL
+    #   flag: --google-redirect-url
+    redirect_url: "http://localhost:8080/api/v1/auth/google/callback"

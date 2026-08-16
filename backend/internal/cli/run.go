@@ -3,6 +3,7 @@ package cli
 import (
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -60,7 +61,20 @@ func newRunCmd() *cobra.Command {
 
 			publicSvc := forms.NewPublicService(sqlite.NewSubmissionRepo(db))
 
-			return httpapi.Run(cmd.Context(), cfg, authSvc, formSvc, publicSvc, logger)
+			// Sem credenciais, googleAuth é nil e /auth/google responde 501.
+			// O servidor sobe e o resto do app continua íntegro.
+			googleAuth := auth.NewGoogleAuth(
+				cfg.Auth.Google.ClientID,
+				cfg.Auth.Google.ClientSecret,
+				cfg.Auth.Google.RedirectURL,
+				sqlite.NewUserRepo(db),
+				strings.HasPrefix(cfg.PublicBaseURL, "https://"),
+			)
+			if googleAuth == nil {
+				logger.Warn("login com Google desabilitado: credenciais não configuradas")
+			}
+
+			return httpapi.Run(cmd.Context(), cfg, authSvc, formSvc, publicSvc, googleAuth, logger)
 		},
 	}
 

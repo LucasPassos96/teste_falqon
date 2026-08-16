@@ -19,6 +19,9 @@ type API struct {
 	auth   *auth.Service
 	forms  *forms.Service
 	public *forms.PublicService
+	// google é nil quando não há credenciais configuradas; os handlers
+	// respondem 501 nesse caso.
+	google *auth.GoogleAuth
 	// publicBaseURL decide se o cookie sai com Secure e, adiante, monta o link
 	// público do formulário.
 	publicBaseURL string
