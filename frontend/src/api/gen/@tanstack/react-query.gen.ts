@@ -366,27 +366,30 @@ export const listSubmissionsInfiniteQueryKey = (options: Options<ListSubmissions
 /**
  * Respostas recebidas por um formulário
  */
-export const listSubmissionsInfiniteOptions = (options: Options<ListSubmissionsData>) => infiniteQueryOptions<ListSubmissionsResponse, ListSubmissionsError, InfiniteData<ListSubmissionsResponse>, QueryKey<Options<ListSubmissionsData>>, number | Pick<QueryKey<Options<ListSubmissionsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-// @ts-ignore
-{
-    queryFn: async ({ pageParam, queryKey, signal }) => {
-        // @ts-ignore
-        const page: Pick<QueryKey<Options<ListSubmissionsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
-            query: {
-                offset: pageParam
-            }
-        };
-        const params = createInfiniteParams(queryKey, page);
-        const { data } = await listSubmissions({
-            ...options,
-            ...params,
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listSubmissionsInfiniteQueryKey(options)
-});
+export const listSubmissionsInfiniteOptions = (options: Options<ListSubmissionsData>) => {
+    const opts = infiniteQueryOptions<ListSubmissionsResponse, ListSubmissionsError, InfiniteData<ListSubmissionsResponse>, QueryKey<Options<ListSubmissionsData>>, number | Pick<QueryKey<Options<ListSubmissionsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListSubmissionsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listSubmissions({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listSubmissionsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const getPublicFormQueryKey = (options: Options<GetPublicFormData>) => createQueryKey('getPublicForm', options);
 
