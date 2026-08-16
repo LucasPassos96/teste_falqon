@@ -58,7 +58,9 @@ func newRunCmd() *cobra.Command {
 
 			formSvc := forms.NewService(sqlite.NewFormRepo(db), cfg.PublicBaseURL)
 
-			return httpapi.Run(cmd.Context(), cfg, authSvc, formSvc, logger)
+			publicSvc := forms.NewPublicService(sqlite.NewSubmissionRepo(db))
+
+			return httpapi.Run(cmd.Context(), cfg, authSvc, formSvc, publicSvc, logger)
 		},
 	}
 

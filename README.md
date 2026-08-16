@@ -404,6 +404,96 @@ perfeitamente válido em português.
 
 ---
 
+## Fluxo público e respostas
+
+Quem tem o link preenche, sem login:
+
+```bash
+curl localhost:8080/api/v1/public/forms/{slug}
+
+curl -X POST localhost:8080/api/v1/public/forms/{slug}/submissions \
+  -H 'Content-Type: application/json' \
+  -d '{"answers":[{"field_id":"…","value":"Ana"}]}'
+```
+
+E o admin lê o que chegou:
+
+```bash
+curl -b j.txt 'localhost:8080/api/v1/forms/{id}/submissions?limit=50&offset=0'
+```
+
+### As decisões, e o porquê de cada uma
+
+**Confiança zero no que o cliente manda.** O backend aceita **apenas** pares
+`field_id` + `value`. Obrigatoriedade, tipo, faixa e opções do select são
+sempre relidos do banco a partir do slug — não há como o visitante mandar
+`required: false` nem inventar um campo. `field_id` que não pertence ao
+formulário é **rejeitado**, não ignorado: ignorar em silêncio esconde bug de
+integração.
+
+**A validação percorre a definição, não o payload.** Iterando sobre as
+respostas recebidas, um campo obrigatório simplesmente omitido pelo cliente
+passaria despercebido. Percorrendo a definição, ausência e vazio caem na mesma
+regra.
+
+**Todos os erros de uma vez.** O visitante corrige o formulário inteiro numa
+passada, em vez de descobrir um problema por vez. É uma decisão de UX que virou
+decisão de tipo: `field_errors` é uma lista.
+
+**Comprimento contado em runes, não bytes.** `len("ação")` em Go devolve **5**,
+não 4 — `ç` e `ã` ocupam dois bytes cada em UTF-8. Um limite de 10 caracteres
+implementado com `len` recusaria um nome perfeitamente válido em português. O
+teste `acento não conta dobrado` existe exatamente para travar essa regressão.
+
+**Quem valida também canoniza.** O service persiste o retorno da validação,
+nunca o payload original, então é impossível gravar algo que não passou pelo
+validador. `"030"` vira `"30"`, `"Ana@Exemplo.COM"` vira `"ana@exemplo.com"`, e
+o checkbox vira `"true"`/`"false"`.
+
+**O rótulo é copiado para a resposta.** Se o admin renomear "Nome" para "Nome
+completo" depois, as respostas antigas continuam legíveis com o texto que o
+visitante realmente viu. É denormalização deliberada: uma coluna a mais em
+troca de uma tela que não mente — o mesmo raciocínio de congelar o preço no
+item do pedido em vez de ler do produto.
+
+**Schemas separados para admin e visitante.** `GET /public/forms/{slug}`
+devolve **só** título, descrição e os campos. Sem `user_id`, sem
+`submission_count`, sem timestamps, sem o id interno do formulário. São dois
+schemas distintos na OpenAPI (`Form` e `PublicForm`) justamente para que
+adicionar um campo no admin não passe a vazar no público seis meses depois.
+
+**Formulário em draft responde 404 igual a inexistente**, para não confirmar
+que o rascunho existe.
+
+**Não sanitizo na entrada; escapo na saída.** Um `<script>` enviado numa
+resposta é guardado como texto puro. Sanitizar na entrada destrói o dado —
+alguém pode legitimamente responder `<script>` numa pergunta sobre código — e
+obriga a adivinhar em que contexto aquele texto será renderizado. O ponto
+sensível é a tela de respostas do admin, onde conteúdo de um visitante anônimo
+é renderizado numa sessão privilegiada; lá o React escapa tudo que passa por
+JSX, e `dangerouslySetInnerHTML` não aparece no projeto.
+
+**Corpo limitado a 1MB** com `http.MaxBytesReader`. O endpoint público é
+anônimo e ilimitado por natureza: sem teto, uma única requisição aloca memória
+até derrubar o processo. O `MaxBytesReader` corta a leitura **no** limite, em
+vez de bufferizar tudo antes de reclamar.
+
+**A posse do formulário é resolvida antes de listar as respostas.** Sem isso, a
+proteção do recurso pai não valeria nada: bastaria conhecer o id de um
+formulário alheio para ler tudo que responderam nele.
+
+### Testes
+
+O validador de submissão é o único pacote com suíte de testes, e é onde ela
+paga o próprio custo: são seis tipos de campo × obrigatório/opcional × regras
+de faixa, tudo lógica pura, sem HTTP e sem banco.
+
+```bash
+task test
+```
+
+---
+
 ## Decisões de arquitetura
 
 Registradas aqui conforme são tomadas, com o porquê e a alternativa descartada.

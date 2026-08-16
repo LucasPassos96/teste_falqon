@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -138,6 +139,37 @@ type Health struct {
 	Status string `json:"status"`
 }
 
+// PublicField defines model for PublicField.
+type PublicField struct {
+	Config   *FieldConfig       `json:"config,omitempty"`
+	HelpText *string            `json:"help_text,omitempty"`
+	Id       openapi_types.UUID `json:"id"`
+	Label    string             `json:"label"`
+	Required bool               `json:"required"`
+	Type     FieldType          `json:"type"`
+}
+
+// PublicForm defines model for PublicForm.
+type PublicForm struct {
+	Description string        `json:"description"`
+	Fields      []PublicField `json:"fields"`
+	Title       string        `json:"title"`
+}
+
+// Submission defines model for Submission.
+type Submission struct {
+	Answers     []SubmissionAnswer `json:"answers"`
+	Id          openapi_types.UUID `json:"id"`
+	SubmittedAt time.Time          `json:"submitted_at"`
+}
+
+// SubmissionAnswer defines model for SubmissionAnswer.
+type SubmissionAnswer struct {
+	FieldId    openapi_types.UUID `json:"field_id"`
+	FieldLabel string             `json:"field_label"`
+	Value      string             `json:"value"`
+}
+
 // User defines model for User.
 type User struct {
 	Email openapi_types.Email `json:"email"`
@@ -196,6 +228,20 @@ type UpdateFormJSONBody struct {
 // ReplaceFormFieldsJSONBody defines parameters for ReplaceFormFields.
 type ReplaceFormFieldsJSONBody = []FieldInput
 
+// ListSubmissionsParams defines parameters for ListSubmissions.
+type ListSubmissionsParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// SubmitPublicFormJSONBody defines parameters for SubmitPublicForm.
+type SubmitPublicFormJSONBody struct {
+	Answers []struct {
+		FieldId openapi_types.UUID `json:"field_id"`
+		Value   string             `json:"value"`
+	} `json:"answers"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody LoginJSONBody
 
@@ -210,6 +256,9 @@ type UpdateFormJSONRequestBody UpdateFormJSONBody
 
 // ReplaceFormFieldsJSONRequestBody defines body for ReplaceFormFields for application/json ContentType.
 type ReplaceFormFieldsJSONRequestBody = ReplaceFormFieldsJSONBody
+
+// SubmitPublicFormJSONRequestBody defines body for SubmitPublicForm for application/json ContentType.
+type SubmitPublicFormJSONRequestBody SubmitPublicFormJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -246,12 +295,21 @@ type ServerInterface interface {
 	// PublishForm Publica e devolve a URL pública
 	// (POST /forms/{formId}/publish)
 	PublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
+	// ListSubmissions Respostas recebidas por um formulário
+	// (GET /forms/{formId}/submissions)
+	ListSubmissions(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID, params ListSubmissionsParams)
 	// UnpublishForm Volta o formulário para draft
 	// (POST /forms/{formId}/unpublish)
 	UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID)
 	// GetHealth Verifica se a API está no ar
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// GetPublicForm Formulário publicado, visto pelo visitante
+	// (GET /public/forms/{slug})
+	GetPublicForm(w http.ResponseWriter, r *http.Request, slug string)
+	// SubmitPublicForm Envia uma resposta
+	// (POST /public/forms/{slug}/submissions)
+	SubmitPublicForm(w http.ResponseWriter, r *http.Request, slug string)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -324,6 +382,12 @@ func (_ Unimplemented) PublishForm(w http.ResponseWriter, r *http.Request, formI
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ListSubmissions Respostas recebidas por um formulário
+// (GET /forms/{formId}/submissions)
+func (_ Unimplemented) ListSubmissions(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID, params ListSubmissionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // UnpublishForm Volta o formulário para draft
 // (POST /forms/{formId}/unpublish)
 func (_ Unimplemented) UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
@@ -333,6 +397,18 @@ func (_ Unimplemented) UnpublishForm(w http.ResponseWriter, r *http.Request, for
 // GetHealth Verifica se a API está no ar
 // (GET /health)
 func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPublicForm Formulário publicado, visto pelo visitante
+// (GET /public/forms/{slug})
+func (_ Unimplemented) GetPublicForm(w http.ResponseWriter, r *http.Request, slug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SubmitPublicForm Envia uma resposta
+// (POST /public/forms/{slug}/submissions)
+func (_ Unimplemented) SubmitPublicForm(w http.ResponseWriter, r *http.Request, slug string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -559,6 +635,61 @@ func (siw *ServerInterfaceWrapper) PublishForm(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListSubmissions operation middleware
+func (siw *ServerInterfaceWrapper) ListSubmissions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "formId" -------------
+	var formId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "formId", chi.URLParam(r, "formId"), &formId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "formId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSubmissionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "offset"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSubmissions(w, r, formId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UnpublishForm operation middleware
 func (siw *ServerInterfaceWrapper) UnpublishForm(w http.ResponseWriter, r *http.Request) {
 
@@ -590,6 +721,58 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPublicForm operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", chi.URLParam(r, "slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPublicForm(w, r, slug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitPublicForm operation middleware
+func (siw *ServerInterfaceWrapper) SubmitPublicForm(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slug" -------------
+	var slug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", chi.URLParam(r, "slug"), &slug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitPublicForm(w, r, slug)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -750,6 +933,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/forms/{formId}/unpublish", wrapper.UnpublishForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/forms/{formId}/submissions", wrapper.ListSubmissions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/public/forms/{slug}", wrapper.GetPublicForm)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/public/forms/{slug}/submissions", wrapper.SubmitPublicForm)
 	})
 
 	return r
@@ -1328,6 +1520,60 @@ func (response PublishForm409JSONResponse) VisitPublishFormResponse(w http.Respo
 	return err
 }
 
+type ListSubmissionsRequestObject struct {
+	FormId openapi_types.UUID `json:"formId"`
+	Params ListSubmissionsParams
+}
+
+type ListSubmissionsResponseObject interface {
+	VisitListSubmissionsResponse(w http.ResponseWriter) error
+}
+
+type ListSubmissions200JSONResponse struct {
+	Items []Submission `json:"items"`
+	Total int          `json:"total"`
+}
+
+func (response ListSubmissions200JSONResponse) VisitListSubmissionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSubmissions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSubmissions401JSONResponse) VisitListSubmissionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSubmissions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListSubmissions404JSONResponse) VisitListSubmissionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UnpublishFormRequestObject struct {
 	FormId openapi_types.UUID `json:"formId"`
 }
@@ -1399,6 +1645,87 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type GetPublicFormRequestObject struct {
+	Slug string `json:"slug"`
+}
+
+type GetPublicFormResponseObject interface {
+	VisitGetPublicFormResponse(w http.ResponseWriter) error
+}
+
+type GetPublicForm200JSONResponse PublicForm
+
+func (response GetPublicForm200JSONResponse) VisitGetPublicFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPublicForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPublicForm404JSONResponse) VisitGetPublicFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitPublicFormRequestObject struct {
+	Slug string `json:"slug"`
+	Body *SubmitPublicFormJSONRequestBody
+}
+
+type SubmitPublicFormResponseObject interface {
+	VisitSubmitPublicFormResponse(w http.ResponseWriter) error
+}
+
+type SubmitPublicForm201Response struct {
+}
+
+func (response SubmitPublicForm201Response) VisitSubmitPublicFormResponse(w http.ResponseWriter) error {
+	w.WriteHeader(201)
+	return nil
+}
+
+type SubmitPublicForm404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SubmitPublicForm404JSONResponse) VisitSubmitPublicFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubmitPublicForm422JSONResponse struct{ ValidationFailedJSONResponse }
+
+func (response SubmitPublicForm422JSONResponse) VisitSubmitPublicFormResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Login Autentica com e-mail e senha
@@ -1434,12 +1761,21 @@ type StrictServerInterface interface {
 	// PublishForm Publica e devolve a URL pública
 	// (POST /forms/{formId}/publish)
 	PublishForm(ctx context.Context, request PublishFormRequestObject) (PublishFormResponseObject, error)
+	// ListSubmissions Respostas recebidas por um formulário
+	// (GET /forms/{formId}/submissions)
+	ListSubmissions(ctx context.Context, request ListSubmissionsRequestObject) (ListSubmissionsResponseObject, error)
 	// UnpublishForm Volta o formulário para draft
 	// (POST /forms/{formId}/unpublish)
 	UnpublishForm(ctx context.Context, request UnpublishFormRequestObject) (UnpublishFormResponseObject, error)
 	// GetHealth Verifica se a API está no ar
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// GetPublicForm Formulário publicado, visto pelo visitante
+	// (GET /public/forms/{slug})
+	GetPublicForm(ctx context.Context, request GetPublicFormRequestObject) (GetPublicFormResponseObject, error)
+	// SubmitPublicForm Envia uma resposta
+	// (POST /public/forms/{slug}/submissions)
+	SubmitPublicForm(ctx context.Context, request SubmitPublicFormRequestObject) (SubmitPublicFormResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1790,6 +2126,33 @@ func (sh *strictHandler) PublishForm(w http.ResponseWriter, r *http.Request, for
 	}
 }
 
+// ListSubmissions operation middleware
+func (sh *strictHandler) ListSubmissions(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID, params ListSubmissionsParams) {
+	var request ListSubmissionsRequestObject
+
+	request.FormId = formId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSubmissions(ctx, request.(ListSubmissionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSubmissions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSubmissionsResponseObject); ok {
+		if err := validResponse.VisitListSubmissionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // UnpublishForm operation middleware
 func (sh *strictHandler) UnpublishForm(w http.ResponseWriter, r *http.Request, formId openapi_types.UUID) {
 	var request UnpublishFormRequestObject
@@ -1840,45 +2203,112 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetPublicForm operation middleware
+func (sh *strictHandler) GetPublicForm(w http.ResponseWriter, r *http.Request, slug string) {
+	var request GetPublicFormRequestObject
+
+	request.Slug = slug
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPublicForm(ctx, request.(GetPublicFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPublicForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPublicFormResponseObject); ok {
+		if err := validResponse.VisitGetPublicFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitPublicForm operation middleware
+func (sh *strictHandler) SubmitPublicForm(w http.ResponseWriter, r *http.Request, slug string) {
+	var request SubmitPublicFormRequestObject
+
+	request.Slug = slug
+
+	var body SubmitPublicFormJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitPublicForm(ctx, request.(SubmitPublicFormRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitPublicForm")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitPublicFormResponseObject); ok {
+		if err := validResponse.VisitSubmitPublicFormResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"1FvNciO38X8VFP7/Q1KhJUq2KzFzWssre8tb3q2VtZeVSmoOmiS8GGAWH7QUFavyEHmBLR9cOfjkyiVX",
+	"vkmeJAVgZjgzxFDU9+ayIgk00J8/dDewVzRTeaEkSmvo6IpqNIWSBsOXAyUngmfWf86UtCjDRygKwTOw",
+	"XMndn4yS/jeTzTAH/+n/NU7oiP7f7mrh3Thqdp9rrTRdLBYDytBkmhd+ETqirwrUsPx1+Ysi0v9ToM65",
+	"5QyIVASNBaYIWAeCMEU0Zk4bRRcD+oOyh8pJ9vAcvombRvZQ+s00sMDEsQRnZ0rzv+EjMHKExngewBmU",
+	"FolyhMv58qPgDDw3b8F/8pMPgYt75Gi1cC9vr+FSKGA1Q4r6OeUCfv1IObqihVYFasujo2WKof+LF5AX",
+	"AumIcjn3251lGhlKy0EYOqD2svCDxmoup17YHI2BaaDtjC0GVOMHx7XXwLu4w2r+ab2WGv+EmfVrHXIU",
+	"LMWbnPDpdcoJxAdx6mJAZyiKM4sXQeU5XLxEObUzOvpyOExIwcO2E6VzsHREneMsJayAMYrOgvt+wZzL",
+	"6vtegq5QhkcDXfmpPHc5Ha344NLiFDVtaazW51gpgSD9aPxlCz386Cd2LbCSqZKkMd5gstc0B7Uh2gbK",
+	"4aKlPqbcWOBKgdLl4yheDhdnolRUoIuq2BsOSy2W31Oqybncdhcut9klaQAVIimIxS3mZit1v4rhFwV8",
+	"Ecn2Go4GWsNlsEdasS9k4eyTOP5tPfoh/bTPRXv9slT/mv5uK9wchMMb03WkiItUYvTy/mOpKpTeJd9R",
+	"M1PaRvsNqFByWn3GHLhXR+nmA2pQ+IUGNJth9n6sLhqbrGQ5VDpPeJZGsMjOwLZDCix+ZnmOKfBrHTRX",
+	"6+MTL84NA2flLFWMbI3FhRsLnp0Z4UKESCcEeDwYWe2wf77TYqvpxoJ11wuhdH4UZ3oaN865MVzJs0y5",
+	"eNqvI4zlVmBSg65gN7RKEuHD+m171fIkmBw0vaHFRNJpVxI3vJZpmHjioGQzawXrSr7vEETE5LY3rnS9",
+	"Sj/U+2ulLclSXL4Oxn6wfOLO+cOj4unGc3+D9pLIcc8o0DRUAgv6YqV7YiRdvmQlJeFRHQTrEoI0P6Pe",
+	"XoTVWs8C5R0wLcSmvTsEtNYZ1BJt1kTJ/Zo+ghrPtpQgTu738/po3SxFvWd7xYo+JcixSTEfT80m59U5",
+	"etsYlpBvIUCgrY9sT5LiuVvQbVGWzWuSs0msLnutgH7Nth8nLJs009ZVXVxic1nXDYbblowduda38hGE",
+	"mdPcXh754Kx0qN5zfObiyeOLiPKnyjIjajBiwYrXgn+Pl7HA5nKi1pCPHoT2g1WEAXn2+gVhinjAJF87",
+	"LhjqnRN5Ip8biwT0B8fniiz/SYBMlLToSeaoGTAcEUUM6jlnSpNvFUGiSCY4Sks8lB+FDU9kaDdMUQNT",
+	"hgApQFuuCUOBO+QtanJuwbwnU5SoweL5zoms84ARbbLlWfVRhDpiH93bGe4MY92DEgpOR/TzneHO5/4s",
+	"BzsLCtwFZ2e7Qk1jAVYoE8DJe1JwxBeMjujLMBzth8Z+rdjljfoetw7bAoz5WWl2vTtVS9QUCQ9qkfjU",
+	"MPzQ6MjtD4f31s8JkJVo4jxzfm2eAVN/JQwnXAa/CE5LGBITG1DUZyXAyrPqCO1nB9GvE87aISXfWVu8",
+	"kuKSDhq8dtXnOftiuNcnRq2X3Vb/zRPt719PtNYma8YvHb079edYnoO+bKqEZCon+Jk3JfHiyBkEwtpJ",
+	"VVlJ93mpH1+z6Re9OhM8Lx5D04umtM9lhloDgXoVzwZIpmo/aAgdz6MpJuT9Fu2B0xqlDb72BL786nt6",
+	"Oy9qKeTYuOVHzQPaVioJ3eiGGjROubFlEpC0/ptqxhPAVJU2NFoKe/tbdA4b6NYg/fN+i/Iv12WFYffB",
+	"fSHg3oN7jT9dgWSaA4NPAAK/ut5565uaB4G/A82BuNyjX1BMDwZ6NzS9YPCSG3sYZtwRB7br7/jycS37",
+	"eyiA8LIBUYZ4FTgRwML4pMyVyFG24RNqOQjdj8DufeFCp0hutxFTbdi6zr1LxzEu8tQhHe2eCGkfzIo+",
+	"QUrRjaKmj5A/SDAZEsxJ6GH9sRFIu1f+zwu2iCYVaHHde74Jv9fec11W8QZzNed30UNcdTNRfSnblj9s",
+	"7nG0qQAk1jFFPjgPjgVKhqGw8Hv1pRRpaYcP7kK3hoq7qe0btCBm6NGkobhBQGFlSAZ5oUw8rDXkaMNp",
+	"9K4sNX0VtSo0o0PRbjw2T6BrGhCL01CZZbN1yxyHzu3/KJA9aSH29A53PwD3TFjUQOzyN+uED+0oTnjW",
+	"kQK23VW39tF8N5ZnHT2TkB4QjRmOOSubJY0eyfI3yXgW0rcMGBCfgZA5DyVSoUyUMPRcjpa/129XVA3r",
+	"O+SHDu7H6yAIj1m8dhmSL4Zfkf/8/R8EGbegCZxINFY763TMuMJEY8EQvPB1hLRoCEN+Af5cqUbJ8nc9",
+	"Wf4yIOUDCj94Ile0IC2fgiEarVZg+Rzy6hVJ7sJsoojlhfLCupzMQShNflp+PJFTDXNgKrZ3uqVNISAL",
+	"wX8YbXp7CNj++i7eW7euvb8cplK++w3lu9wvPnGQP2IpUaPCkRsby63jBIgIeTKXFn3whHCKp1cCHMrL",
+	"vEdFh2SG/joy8lRpx+sKKj5ZP2mZu2Q3oP9ciTkSIMdvXpJi+e8wkLT16lZ4c/141Jh3R1O0M406pm94",
+	"55a8NVQWROryvXtJE7aq5qcLp08iA31Tnx7lCQmGFEp3aplHS0EH5cIfHOrL1cqC59y2uikMJ+CEjadC",
+	"8x3W5rdefRuoycRgzw7XPOxanCac3slPBuKOK1aeCuS+QVM8Ns61fPytEhY6tam3SUzgImjN6gckfaVp",
+	"+cTkARVY7pC6tgkXgWjs8mOdVMrqBW5PY+8taj7xaG08TK/opSIQASsew1nlu0a46WKTBhqPNx5QC41d",
+	"NsDkjb2hR0uHqcR9QObcWEUKFMp/5Bakxe1AMLwa2xTIa4HbY4nuwfkQW68wo1s1jSF7j5IRyJBbIFCg",
+	"9CcDaDTkvHpDcU7+RM7Du4nzHfJqrPkUrNIcfW01OJG+1BiQCfALnzKoYvnr8l8YWqfxgSEJzXKDeaGR",
+	"aBScxcbqGGSmGpfR6kR60UIFVV1iY3ysn3lTTx2SHCQDTc4r4UdkAsLgOZGY+3oJpQV9IkNOmqpywrHf",
+	"9fD76HOk3vzc4RVM6gFp+fp463cv/S9dNhZb7fX6X/5s3RTu9i/LKjfetmmI/+XhMbsdPRjxXM7LO5Kq",
+	"1o5CNua334K8O/WhZVDPq2gNb0PpLhR8d75HF6eL/wYAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

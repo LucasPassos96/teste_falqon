@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateFormData, CreateFormErrors, CreateFormResponses, DeleteFormData, DeleteFormErrors, DeleteFormResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetFormData, GetFormErrors, GetFormResponses, GetHealthData, GetHealthResponses, ListFormsData, ListFormsErrors, ListFormsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PublishFormData, PublishFormErrors, PublishFormResponses, RegisterData, RegisterErrors, RegisterResponses, ReplaceFormFieldsData, ReplaceFormFieldsErrors, ReplaceFormFieldsResponses, UnpublishFormData, UnpublishFormErrors, UnpublishFormResponses, UpdateFormData, UpdateFormErrors, UpdateFormResponses } from './types.gen';
+import type { CreateFormData, CreateFormErrors, CreateFormResponses, DeleteFormData, DeleteFormErrors, DeleteFormResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetFormData, GetFormErrors, GetFormResponses, GetHealthData, GetHealthResponses, GetPublicFormData, GetPublicFormErrors, GetPublicFormResponses, ListFormsData, ListFormsErrors, ListFormsResponses, ListSubmissionsData, ListSubmissionsErrors, ListSubmissionsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, PublishFormData, PublishFormErrors, PublishFormResponses, RegisterData, RegisterErrors, RegisterResponses, ReplaceFormFieldsData, ReplaceFormFieldsErrors, ReplaceFormFieldsResponses, SubmitPublicFormData, SubmitPublicFormErrors, SubmitPublicFormResponses, UnpublishFormData, UnpublishFormErrors, UnpublishFormResponses, UpdateFormData, UpdateFormErrors, UpdateFormResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -195,4 +195,40 @@ export const unpublishForm = <ThrowOnError extends boolean = false>(options: Opt
         }],
     url: '/forms/{formId}/unpublish',
     ...options
+});
+
+/**
+ * Respostas recebidas por um formulário
+ */
+export const listSubmissions = <ThrowOnError extends boolean = false>(options: Options<ListSubmissionsData, ThrowOnError>) => (options.client ?? client).get<ListSubmissionsResponses, ListSubmissionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'session',
+            type: 'apiKey'
+        }],
+    url: '/forms/{formId}/submissions',
+    ...options
+});
+
+/**
+ * Formulário publicado, visto pelo visitante
+ */
+export const getPublicForm = <ThrowOnError extends boolean = false>(options: Options<GetPublicFormData, ThrowOnError>) => (options.client ?? client).get<GetPublicFormResponses, GetPublicFormErrors, ThrowOnError>({ url: '/public/forms/{slug}', ...options });
+
+/**
+ * Envia uma resposta
+ *
+ * O backend aceita apenas pares `field_id` + `value`. Obrigatoriedade,
+ * tipo, faixa e opções do select são sempre relidos do banco a partir do
+ * slug — o cliente não consegue mandar `required: false` nem inventar
+ * campo.
+ *
+ */
+export const submitPublicForm = <ThrowOnError extends boolean = false>(options: Options<SubmitPublicFormData, ThrowOnError>) => (options.client ?? client).post<SubmitPublicFormResponses, SubmitPublicFormErrors, ThrowOnError>({
+    url: '/public/forms/{slug}/submissions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });

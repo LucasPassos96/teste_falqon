@@ -70,6 +70,33 @@ export type Form = {
     updated_at: string;
 };
 
+export type PublicForm = {
+    title: string;
+    description: string;
+    fields: Array<PublicField>;
+};
+
+export type PublicField = {
+    id: string;
+    type: FieldType;
+    label: string;
+    help_text?: string;
+    required: boolean;
+    config?: FieldConfig;
+};
+
+export type SubmissionAnswer = {
+    field_id: string;
+    field_label: string;
+    value: string;
+};
+
+export type Submission = {
+    id: string;
+    submitted_at: string;
+    answers: Array<SubmissionAnswer>;
+};
+
 export type User = {
     id: string;
     email: string;
@@ -459,3 +486,101 @@ export type UnpublishFormResponses = {
 };
 
 export type UnpublishFormResponse = UnpublishFormResponses[keyof UnpublishFormResponses];
+
+export type ListSubmissionsData = {
+    body?: never;
+    path: {
+        formId: string;
+    };
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/forms/{formId}/submissions';
+};
+
+export type ListSubmissionsErrors = {
+    /**
+     * Sessão ausente ou inválida
+     */
+    401: Error;
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+};
+
+export type ListSubmissionsError = ListSubmissionsErrors[keyof ListSubmissionsErrors];
+
+export type ListSubmissionsResponses = {
+    /**
+     * OK
+     */
+    200: {
+        total: number;
+        items: Array<Submission>;
+    };
+};
+
+export type ListSubmissionsResponse = ListSubmissionsResponses[keyof ListSubmissionsResponses];
+
+export type GetPublicFormData = {
+    body?: never;
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/public/forms/{slug}';
+};
+
+export type GetPublicFormErrors = {
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+};
+
+export type GetPublicFormError = GetPublicFormErrors[keyof GetPublicFormErrors];
+
+export type GetPublicFormResponses = {
+    /**
+     * OK
+     */
+    200: PublicForm;
+};
+
+export type GetPublicFormResponse = GetPublicFormResponses[keyof GetPublicFormResponses];
+
+export type SubmitPublicFormData = {
+    body: {
+        answers: Array<{
+            field_id: string;
+            value: string;
+        }>;
+    };
+    path: {
+        slug: string;
+    };
+    query?: never;
+    url: '/public/forms/{slug}/submissions';
+};
+
+export type SubmitPublicFormErrors = {
+    /**
+     * Recurso não encontrado
+     */
+    404: Error;
+    /**
+     * Payload inválido
+     */
+    422: ValidationError;
+};
+
+export type SubmitPublicFormError = SubmitPublicFormErrors[keyof SubmitPublicFormErrors];
+
+export type SubmitPublicFormResponses = {
+    /**
+     * Resposta registrada
+     */
+    201: unknown;
+};

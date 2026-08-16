@@ -49,6 +49,14 @@ func requestErrorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Reque
 // o cliente recebe uma frase genérica.
 func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
+		// A submissão inválida é o único erro que carrega vários campos de
+		// uma vez: o visitante corrige o formulário inteiro numa passada.
+		var ve *forms.ValidationError
+		if errors.As(err, &ve) {
+			writeSubmissionErrors(w, ve)
+			return
+		}
+
 		status, code, message, field := classify(err)
 
 		if status >= http.StatusInternalServerError {
@@ -68,6 +76,21 @@ func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, err
 
 		writeJSON(w, status, gen.Error{Code: code, Message: message})
 	}
+}
+
+// writeSubmissionErrors devolve todos os campos reprovados de uma vez, cada um
+// identificado pelo field_id que o cliente enviou.
+func writeSubmissionErrors(w http.ResponseWriter, ve *forms.ValidationError) {
+	errs := make([]fieldError, 0, len(ve.FieldErrors))
+	for _, fe := range ve.FieldErrors {
+		errs = append(errs, fieldError{Field: fe.FieldID, Message: fe.Message})
+	}
+
+	writeJSON(w, http.StatusUnprocessableEntity, gen.ValidationError{
+		Code:        "validation_failed",
+		Message:     "A submissão contém campos inválidos",
+		FieldErrors: errs,
+	})
 }
 
 // writeValidationError sempre emite field_errors, que é obrigatório no schema.

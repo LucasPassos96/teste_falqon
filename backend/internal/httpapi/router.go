@@ -15,7 +15,7 @@ import (
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
-func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service, log *slog.Logger) (http.Handler, error) {
+func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service, publicSvc *forms.PublicService, log *slog.Logger) (http.Handler, error) {
 	spec, err := gen.GetSwagger()
 	if err != nil {
 		return nil, fmt.Errorf("carregar spec embutida: %w", err)
@@ -28,8 +28,9 @@ func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service
 	r.Use(requestLogger(log))
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
+	r.Use(limitBody)
 
-	api := &API{auth: authSvc, forms: formSvc, publicBaseURL: cfg.PublicBaseURL}
+	api := &API{auth: authSvc, forms: formSvc, public: publicSvc, publicBaseURL: cfg.PublicBaseURL}
 
 	handler := gen.NewStrictHandlerWithOptions(
 		api,

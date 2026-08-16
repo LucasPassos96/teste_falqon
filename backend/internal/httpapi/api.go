@@ -16,8 +16,9 @@ import (
 // operationId da spec vira um método aqui, e o código não compila enquanto
 // faltar algum.
 type API struct {
-	auth  *auth.Service
-	forms *forms.Service
+	auth   *auth.Service
+	forms  *forms.Service
+	public *forms.PublicService
 	// publicBaseURL decide se o cookie sai com Secure e, adiante, monta o link
 	// público do formulário.
 	publicBaseURL string

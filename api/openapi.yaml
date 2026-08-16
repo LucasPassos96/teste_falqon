@@ -349,6 +349,121 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /forms/{formId}/submissions:
+    parameters:
+      - name: formId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    get:
+      operationId: listSubmissions
+      summary: Respostas recebidas por um formulário
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Submission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------- PÚBLICO ----------
+  # Sem autenticação. O slug é a credencial: quem tem o link, preenche.
+
+  /public/forms/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getPublicForm
+      summary: Formulário publicado, visto pelo visitante
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicForm"
+        # Formulário em draft responde 404 igual a inexistente, para não
+        # confirmar que o rascunho existe.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /public/forms/{slug}/submissions:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: submitPublicForm
+      summary: Envia uma resposta
+      description: |
+        O backend aceita apenas pares `field_id` + `value`. Obrigatoriedade,
+        tipo, faixa e opções do select são sempre relidos do banco a partir do
+        slug — o cliente não consegue mandar `required: false` nem inventar
+        campo.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [field_id, value]
+                    properties:
+                      field_id:
+                        type: string
+                        format: uuid
+                      value:
+                        type: string
+                        maxLength: 10000
+      responses:
+        "201":
+          description: Resposta registrada
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -551,6 +666,76 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    # ---- schema do VISITANTE ----
+    # Deliberadamente separado de Form. Sem id interno, sem dono, sem contagem
+    # de respostas, sem timestamps.
+    #
+    # O risco clássico aqui é reaproveitar o mesmo DTO nos dois endpoints e,
+    # meses depois, alguém adicionar um campo no admin que passa a sair no
+    # público sem ninguém notar. Com dois schemas distintos o gerador cria dois
+    # tipos, e isso não acontece por acidente.
+    PublicForm:
+      type: object
+      required: [title, description, fields]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicField"
+
+    PublicField:
+      type: object
+      required: [id, type, label, required]
+      properties:
+        # O id é necessário: é o que o visitante devolve em field_id.
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/FieldType"
+        label:
+          type: string
+        help_text:
+          type: string
+        required:
+          type: boolean
+        config:
+          $ref: "#/components/schemas/FieldConfig"
+
+    SubmissionAnswer:
+      type: object
+      required: [field_id, field_label, value]
+      properties:
+        field_id:
+          type: string
+          format: uuid
+        # Cópia do rótulo no momento do envio: se o admin renomear a pergunta
+        # depois, a resposta antiga continua legível com o texto que o
+        # visitante realmente viu.
+        field_label:
+          type: string
+        value:
+          type: string
+
+    Submission:
+      type: object
+      required: [id, submitted_at, answers]
+      properties:
+        id:
+          type: string
+          format: uuid
+        submitted_at:
+          type: string
+          format: date-time
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubmissionAnswer"
 
     User:
       type: object

@@ -21,6 +21,23 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// maxBodyBytes limita o corpo de qualquer requisição a 1MB.
+//
+// O endpoint público de submissão é anônimo e ilimitado por natureza: sem
+// teto, uma única requisição aloca memória até derrubar o processo. O
+// MaxBytesReader corta a leitura NO limite, em vez de bufferizar tudo antes de
+// reclamar.
+const maxBodyBytes = 1 << 20
+
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
