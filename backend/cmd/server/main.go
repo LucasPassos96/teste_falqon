@@ -12,7 +12,7 @@ import (
 
 func main() {
 	// Ctrl+C vira cancelamento de contexto, o que permite o desligamento
-	// gracioso em internal/httpapi.
+	// gracioso.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

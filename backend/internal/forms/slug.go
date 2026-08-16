@@ -8,17 +8,12 @@ import (
 
 const (
 	slugAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	// 12 caracteres em base62 dão ~71 bits: espaço grande demais para
-	// enumerar. O link é uma capability — quem tem, preenche —, então isso
-	// significa "não listado", não "privado".
+	// 12 caracteres em base62 dão ~71 bits, longe do enumerável.
 	slugLength = 12
 )
 
-// NewSlug gera o identificador público de um formulário.
-//
-// crypto/rand e não math/rand: o segundo é determinístico, e a partir de
-// alguns slugs observados dá para reconstruir o estado do gerador e prever
-// todos os outros — inclusive os de formulários de outras pessoas.
+// NewSlug gera o identificador público de um formulário. crypto/rand e não
+// math/rand: o segundo permitiria prever os slugs seguintes.
 func NewSlug() (string, error) {
 	max := big.NewInt(int64(len(slugAlphabet)))
 	buf := make([]byte, slugLength)

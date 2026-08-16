@@ -37,8 +37,7 @@ func (r *FormRepo) Create(ctx context.Context, f forms.Form) error {
 	return nil
 }
 
-// ListOwnedBy traz a lista sem os campos: a tela de listagem não os usa, e
-// carregá-los seria uma query por formulário à toa.
+// ListOwnedBy traz a lista sem os campos, que a tela de listagem não usa.
 func (r *FormRepo) ListOwnedBy(ctx context.Context, ownerID string) ([]forms.Form, error) {
 	const q = `
 		SELECT f.id, f.user_id, f.title, f.description, f.status, f.public_slug,
@@ -70,8 +69,8 @@ func (r *FormRepo) ListOwnedBy(ctx context.Context, ownerID string) ([]forms.For
 	return list, nil
 }
 
-// GetOwnedBy é a única forma de alcançar um formulário. O `AND user_id = ?`
-// não é uma checagem que o handler pode esquecer: ele está na query.
+// GetOwnedBy é a única forma de alcançar um formulário: o `AND user_id = ?`
+// está na query, não numa checagem que o handler possa esquecer.
 func (r *FormRepo) GetOwnedBy(ctx context.Context, formID, ownerID string) (forms.Form, error) {
 	const q = `
 		SELECT f.id, f.user_id, f.title, f.description, f.status, f.public_slug,
@@ -110,8 +109,7 @@ func (r *FormRepo) UpdateOwnedBy(ctx context.Context, f forms.Form) error {
 }
 
 func (r *FormRepo) DeleteOwnedBy(ctx context.Context, formID, ownerID string) error {
-	// Campos, submissões e respostas somem por ON DELETE CASCADE — que só
-	// funciona porque o pragma foreign_keys está ligado no DSN.
+	// O resto some por ON DELETE CASCADE, que depende do pragma foreign_keys.
 	const q = `DELETE FROM forms WHERE id = ? AND user_id = ?`
 
 	res, err := r.db.ExecContext(ctx, q, formID, ownerID)
@@ -121,18 +119,14 @@ func (r *FormRepo) DeleteOwnedBy(ctx context.Context, formID, ownerID string) er
 	return requireOneRow(res, "remover formulário")
 }
 
-// ReplaceFields apaga tudo e reinsere, numa transação.
-//
-// A transação é o que torna o "substitui a lista inteira" seguro: se a
-// inserção falhar no meio, o rollback devolve os campos antigos. Sem ela, um
-// erro deixaria o formulário sem campo nenhum.
+// ReplaceFields apaga tudo e reinsere numa transação: sem ela, um erro no meio
+// deixaria o formulário sem campo nenhum.
 func (r *FormRepo) ReplaceFields(ctx context.Context, formID string, fields []forms.Field) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("iniciar transação: %w", err)
 	}
-	// Rollback depois de um Commit bem-sucedido é no-op, então este defer é
-	// seguro e cobre todo caminho de erro abaixo.
+	// Rollback após Commit é no-op, então este defer cobre todos os erros.
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM form_fields WHERE form_id = ?`, formID); err != nil {
@@ -196,8 +190,7 @@ func (r *FormRepo) fieldsOf(ctx context.Context, formID string) ([]forms.Field, 
 	return list, nil
 }
 
-// scanner cobre *sql.Row e *sql.Rows, que têm o mesmo Scan mas não uma
-// interface comum na biblioteca padrão.
+// scanner cobre *sql.Row e *sql.Rows, que não têm interface comum na stdlib.
 type scanner interface {
 	Scan(dest ...any) error
 }
@@ -214,8 +207,7 @@ func scanForm(s scanner) (forms.Form, error) {
 	err := s.Scan(&f.ID, &f.UserID, &f.Title, &f.Description, &status, &slug,
 		&publishedAt, &createdAt, &updatedAt, &f.SubmissionCount)
 	if errors.Is(err, sql.ErrNoRows) {
-		// Não encontrado e não é seu são indistinguíveis aqui de propósito: o
-		// handler devolve 404 nos dois casos, e 404 não confirma existência.
+		// Inexistente e alheio são indistinguíveis de propósito.
 		return forms.Form{}, forms.ErrFormNotFound
 	}
 	if err != nil {
@@ -235,9 +227,8 @@ func scanForm(s scanner) (forms.Form, error) {
 	return f, nil
 }
 
-// requireOneRow transforma "não afetou nada" em ErrFormNotFound. Sem isto, um
-// UPDATE num formulário de outro usuário seria um sucesso silencioso que não
-// mudou nada, e o cliente receberia 200.
+// requireOneRow transforma "não afetou nada" em ErrFormNotFound — senão um
+// UPDATE em formulário alheio devolveria 200 sem ter mudado nada.
 func requireOneRow(res sql.Result, acao string) error {
 	n, err := res.RowsAffected()
 	if err != nil {

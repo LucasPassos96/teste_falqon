@@ -12,24 +12,17 @@ import (
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
-// fieldError é o item de field_errors declarado na spec. O gerador produz um
-// struct anônimo dentro de ValidationError, então este alias existe só para
-// montá-lo sem repetir a declaração inteira.
+// fieldError é o item de field_errors da spec; o alias evita repetir o struct
+// anônimo que o gerador produz.
 type fieldError = struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
 
 // requestErrorHandler trata o payload que nem chegou a virar uma requisição
-// válida: JSON malformado, campo obrigatório ausente, formato recusado pelo
-// tipo gerado (um `format: email` da spec vira validação no unmarshal).
-//
-// Isso é sempre erro do cliente. Cair no tratador genérico devolveria 500 —
-// mentindo sobre de quem é a culpa e transformando entrada inválida em alarme
-// de indisponibilidade no monitoramento.
-//
-// A mensagem é genérica de propósito: o erro cru do decodificador descreve a
-// estrutura interna do payload.
+// válida: JSON malformado, campo ausente, formato recusado no unmarshal. É
+// sempre erro do cliente, então 422 e não 500. A mensagem é genérica porque o
+// erro cru do decodificador descreve a estrutura interna do payload.
 func requestErrorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		log.Info("payload rejeitado",
@@ -41,16 +34,11 @@ func requestErrorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Reque
 	}
 }
 
-// errorHandler traduz erro de domínio em resposta HTTP.
-//
-// É o único lugar que decide status e mensagem, e é o que garante que erro de
-// banco nunca vaza para o cliente: mensagem crua entrega nome de tabela,
-// coluna e às vezes o SQL inteiro. O detalhe vai para o log com o request ID;
-// o cliente recebe uma frase genérica.
+// errorHandler traduz erro de domínio em resposta HTTP. É o único lugar que
+// decide status e mensagem, e o que impede erro de banco de vazar: o detalhe
+// vai para o log, o cliente recebe uma frase genérica.
 func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
-		// A submissão inválida é o único erro que carrega vários campos de
-		// uma vez: o visitante corrige o formulário inteiro numa passada.
 		var ve *forms.ValidationError
 		if errors.As(err, &ve) {
 			writeSubmissionErrors(w, ve)
@@ -67,8 +55,8 @@ func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, err
 			)
 		}
 
-		// O 422 usa o envelope ValidationError, com field_errors; os demais
-		// usam Error. São dois schemas distintos na spec e precisam bater.
+		// 422 usa o envelope ValidationError; os demais usam Error. São dois
+		// schemas distintos na spec.
 		if status == http.StatusUnprocessableEntity {
 			writeValidationError(w, message, &fieldError{Field: field, Message: message})
 			return
@@ -78,8 +66,7 @@ func errorHandler(log *slog.Logger) func(http.ResponseWriter, *http.Request, err
 	}
 }
 
-// writeSubmissionErrors devolve todos os campos reprovados de uma vez, cada um
-// identificado pelo field_id que o cliente enviou.
+// writeSubmissionErrors devolve todos os campos reprovados de uma vez.
 func writeSubmissionErrors(w http.ResponseWriter, ve *forms.ValidationError) {
 	errs := make([]fieldError, 0, len(ve.FieldErrors))
 	for _, fe := range ve.FieldErrors {
@@ -93,8 +80,7 @@ func writeSubmissionErrors(w http.ResponseWriter, ve *forms.ValidationError) {
 	})
 }
 
-// writeValidationError sempre emite field_errors, que é obrigatório no schema.
-// Um array vazio satisfaz o contrato quando não há um campo identificável.
+// writeValidationError sempre emite field_errors, obrigatório no schema.
 func writeValidationError(w http.ResponseWriter, message string, fe *fieldError) {
 	errs := []fieldError{}
 	if fe != nil {
@@ -113,20 +99,16 @@ func classify(err error) (status int, code, message, field string) {
 		return http.StatusUnauthorized, "unauthorized", "Sessão ausente ou inválida", ""
 
 	case errors.Is(err, auth.ErrInvalidCredentials):
-		// Mesma resposta para e-mail inexistente e senha errada: mensagens
-		// diferentes transformariam o login numa API de consulta de contas.
 		return http.StatusUnauthorized, "invalid_credentials", "E-mail ou senha inválidos", ""
 
 	case errors.Is(err, auth.ErrEmailTaken):
 		return http.StatusConflict, "email_taken", "Já existe uma conta com este e-mail", ""
 
+	// Sessão apontando para usuário que não existe mais é sessão inválida,
+	// não recurso ausente.
 	case errors.Is(err, auth.ErrUserNotFound):
-		// A sessão aponta para um usuário que não existe mais: do ponto de
-		// vista do cliente é uma sessão inválida, não um recurso ausente.
 		return http.StatusUnauthorized, "unauthorized", "Sessão ausente ou inválida", ""
 
-	// As mensagens abaixo são seguras de mostrar: dizem o que corrigir, sem
-	// revelar nada sobre o sistema.
 	case errors.Is(err, auth.ErrPasswordPolicy):
 		return http.StatusUnprocessableEntity, "validation_failed", err.Error(), "password"
 
@@ -136,10 +118,7 @@ func classify(err error) (status int, code, message, field string) {
 	case errors.Is(err, auth.ErrNameRequired):
 		return http.StatusUnprocessableEntity, "validation_failed", "Nome é obrigatório", "name"
 
-	// 404 e não 403 para formulário de outro usuário: 403 significa "existe,
-	// mas não é seu", o que já é informação. O repositório devolve o mesmo
-	// erro para inexistente e para alheio, então nem o handler consegue
-	// distinguir os dois.
+	// 404 e não 403 para formulário alheio: 403 confirmaria que ele existe.
 	case errors.Is(err, forms.ErrFormNotFound):
 		return http.StatusNotFound, "form_not_found", "Formulário não encontrado", ""
 

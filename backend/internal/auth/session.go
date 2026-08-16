@@ -9,8 +9,7 @@ import (
 
 const SessionCookieName = "session"
 
-// contextKey é um tipo próprio para a chave do context. String crua colidiria
-// silenciosamente com a chave de outro pacote.
+// contextKey é um tipo próprio para evitar colisão com chaves de outros pacotes.
 type contextKey struct{}
 
 var userIDKey contextKey
@@ -19,27 +18,16 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey, userID)
 }
 
-// UserIDFrom devolve o dono da sessão. É a ÚNICA origem aceitável do
-// identificador do usuário: se ele viesse do corpo da requisição, o atacante
-// escolheria de quem é o recurso.
+// UserIDFrom devolve o dono da sessão. É a única origem aceitável do
+// identificador do usuário — nunca o corpo da requisição.
 func UserIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(userIDKey).(string)
 	return id, ok && id != ""
 }
 
-// SessionCookie monta o cookie da sessão.
-//
-// Devolve o cookie em vez de escrevê-lo porque o Set-Cookie está declarado na
-// spec: o handler o entrega como um campo tipado da resposta, e o strict
-// server escreve o cabeçalho.
-//
-//   - HttpOnly tira o token do alcance do JavaScript, então uma XSS não
-//     consegue exfiltrá-lo.
-//   - SameSite=Lax faz o navegador não enviar o cookie em requisição de
-//     escrita vinda de outro site: é a defesa principal contra CSRF.
-//   - Secure é condicional de propósito. Forçado em http de desenvolvimento, o
-//     navegador descartaria o cookie EM SILÊNCIO e o login pareceria quebrado
-//     sem nenhum erro visível.
+// SessionCookie monta o cookie da sessão: HttpOnly contra XSS, SameSite=Lax
+// contra CSRF. Secure é condicional porque, forçado em http, o navegador
+// descartaria o cookie em silêncio e o login pareceria quebrado.
 func SessionCookie(token string, expiresAt time.Time, publicBaseURL string) *http.Cookie {
 	return &http.Cookie{
 		Name:     SessionCookieName,
@@ -52,9 +40,8 @@ func SessionCookie(token string, expiresAt time.Time, publicBaseURL string) *htt
 	}
 }
 
-// ClearedSessionCookie expira o cookie no navegador. Como o JWT não tem
-// revogação no servidor, o logout é exatamente isto: o token continua válido
-// até o `exp`, mas some do navegador. É a limitação consciente do desenho.
+// ClearedSessionCookie expira o cookie no navegador. O token em si continua
+// válido até o `exp` — o JWT não tem revogação no servidor.
 func ClearedSessionCookie(publicBaseURL string) *http.Cookie {
 	return &http.Cookie{
 		Name:     SessionCookieName,

@@ -12,8 +12,6 @@ import (
 	"github.com/LucasPassos96/teste_falqon/backend/internal/forms"
 )
 
-// newID gera o identificador de uma linha de submission_answers, que não é
-// exposto na API mas precisa existir como chave primária.
 func newID() string { return uuid.NewString() }
 
 type SubmissionRepo struct {
@@ -26,10 +24,8 @@ func NewSubmissionRepo(db *sql.DB) *SubmissionRepo {
 
 var _ forms.PublicRepository = (*SubmissionRepo)(nil)
 
-// GetPublishedBySlug exige status = 'published' na própria query.
-//
-// Formulário em draft cai no mesmo ErrFormNotFound de inexistente, então o
-// handler responde 404 nos dois casos e não confirma que o rascunho existe.
+// GetPublishedBySlug exige status = 'published' na query, então formulário em
+// draft cai no mesmo ErrFormNotFound de inexistente.
 func (r *SubmissionRepo) GetPublishedBySlug(ctx context.Context, slug string) (forms.Form, error) {
 	const q = `
 		SELECT id, user_id, title, description, status, public_slug, published_at, created_at, updated_at, 0
@@ -48,8 +44,7 @@ func (r *SubmissionRepo) GetPublishedBySlug(ctx context.Context, slug string) (f
 	return form, nil
 }
 
-// SaveSubmission grava a resposta e seus valores numa transação: uma submissão
-// pela metade, com parte das respostas, seria pior que nenhuma.
+// SaveSubmission grava a resposta e seus valores numa transação.
 func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -70,8 +65,8 @@ func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission)
 		VALUES (?, ?, ?, ?, ?)`
 
 	for _, a := range s.Answers {
-		// field_label é gravado agora, não lido depois por join: é o snapshot
-		// do que o visitante realmente viu.
+		// field_label é gravado agora, não lido por join depois: é o snapshot
+		// do que o visitante viu.
 		if _, err := tx.ExecContext(ctx, insert,
 			newID(), s.ID, a.FieldID, a.FieldLabel, a.Value); err != nil {
 			return fmt.Errorf("gravar resposta do campo %s: %w", a.FieldID, err)
@@ -84,8 +79,8 @@ func (r *SubmissionRepo) SaveSubmission(ctx context.Context, s forms.Submission)
 	return nil
 }
 
-// ListSubmissions devolve a página e o total. O total vem de uma query
-// separada porque COUNT com LIMIT contaria só a página.
+// ListSubmissions devolve a página e o total, que vem de query separada porque
+// COUNT com LIMIT contaria só a página.
 func (r *SubmissionRepo) ListSubmissions(ctx context.Context, formID string, limit, offset int) ([]forms.Submission, int, error) {
 	var total int
 	if err := r.db.QueryRowContext(ctx,
@@ -132,15 +127,15 @@ func (r *SubmissionRepo) ListSubmissions(ctx context.Context, formID string, lim
 	return list, total, nil
 }
 
-// attachAnswers busca as respostas de todas as submissões da página numa query
-// só, em vez de uma por submissão (o problema N+1).
+// attachAnswers busca as respostas da página inteira numa query só, evitando
+// o N+1.
 func (r *SubmissionRepo) attachAnswers(ctx context.Context, list []forms.Submission, ids []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
 
-	// Os placeholders são montados pela QUANTIDADE de ids, nunca pelos valores:
-	// a estrutura da query é minha, o dado continua sendo bindado.
+	// Os placeholders são montados pela quantidade de ids; os valores seguem
+	// bindados.
 	placeholders := make([]byte, 0, len(ids)*2)
 	args := make([]any, 0, len(ids))
 	for i, id := range ids {
@@ -176,7 +171,6 @@ func (r *SubmissionRepo) attachAnswers(ctx context.Context, list []forms.Submiss
 		return fmt.Errorf("iterar valores: %w", err)
 	}
 
-	// Índice por ponteiro para escrever de volta no slice original.
 	for i := range list {
 		if answers, ok := porSubmissao[list[i].ID]; ok {
 			list[i].Answers = answers

@@ -15,9 +15,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sair = useMutation({
     ...logoutMutation(),
     onSuccess: () => {
-      // Sem isto o cache do TanStack Query sobrevive ao logout: o próximo
-      // login na mesma máquina exibiria por um instante os formulários do
-      // usuário anterior. É vazamento real entre contas.
+      // Sem isto, o próximo login na mesma máquina exibiria por um instante os
+      // formulários do usuário anterior, vindos do cache.
       queryClient.clear()
       navigate('/login', { replace: true })
     },

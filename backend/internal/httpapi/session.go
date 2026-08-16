@@ -12,18 +12,13 @@ import (
 )
 
 // publicOperations lê da própria spec quais operações declararam
-// `security: []`.
-//
-// Isto é o que impede a declaração de segurança do OpenAPI de ser decorativa:
-// a lista não é escrita à mão em lugar nenhum, é derivada do contrato. Rota
-// nova sem `security: []` nasce protegida, e abrir uma exige uma linha visível
-// no diff da spec.
+// `security: []`. A lista não é mantida à mão, então rota nova nasce protegida
+// e abrir uma exige uma linha visível no diff da spec.
 func publicOperations(spec *openapi3.T) map[string]bool {
 	public := make(map[string]bool)
 	for _, item := range spec.Paths.Map() {
 		for _, op := range item.Operations() {
-			// Nil significa "herda o security global". Não-nil e vazio é a
-			// declaração explícita de rota aberta.
+			// Nil herda o security global; não-nil e vazio é rota aberta.
 			if op.Security != nil && len(*op.Security) == 0 {
 				public[op.OperationID] = true
 			}
@@ -32,9 +27,8 @@ func publicOperations(spec *openapi3.T) map[string]bool {
 	return public
 }
 
-// requireSession é um middleware do strict server: ele recebe o operationID,
-// e é isso que permite decidir com base na spec em vez de repetir o padrão de
-// rota aqui.
+// requireSession recebe o operationID do strict server, o que permite decidir
+// pela spec em vez de repetir os padrões de rota aqui.
 func requireSession(svc *auth.Service, public map[string]bool) gen.StrictMiddlewareFunc {
 	return func(next gen.StrictHandlerFunc, operationID string) gen.StrictHandlerFunc {
 		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
@@ -52,9 +46,7 @@ func requireSession(svc *auth.Service, public map[string]bool) gen.StrictMiddlew
 				return nil, fmt.Errorf("%w: %v", auth.ErrInvalidToken, err)
 			}
 
-			// Respostas autenticadas não podem ficar no cache do navegador nem
-			// de um proxy: sem isto, o botão voltar recupera dado privado
-			// depois do logout.
+			// Sem isto, o botão voltar recupera dado privado depois do logout.
 			w.Header().Set("Cache-Control", "no-store")
 
 			return next(auth.WithUserID(ctx, userID), w, r, request)

@@ -34,8 +34,7 @@ var (
 	ErrFieldsRequired = errors.New("a lista de campos é obrigatória")
 )
 
-// MaxFields limita o tamanho do formulário. Sem teto, um único PUT poderia
-// inserir dezenas de milhares de linhas.
+// MaxFields evita que um único PUT insira dezenas de milhares de linhas.
 const MaxFields = 50
 
 type Option struct {
@@ -43,10 +42,8 @@ type Option struct {
 	Label string `json:"label"`
 }
 
-// FieldConfig usa ponteiros para distinguir "não configurado" de "configurado
-// como zero". Em Go, um `int` não inicializado vale 0, e sem o ponteiro não
-// haveria como diferenciar "o admin não definiu mínimo" de "o admin definiu
-// mínimo 0". `omitempty` mantém a coluna JSON do banco limpa.
+// Ponteiros para distinguir "não configurado" de "configurado como zero" — em
+// Go um int não inicializado vale 0.
 type FieldConfig struct {
 	MinLength *int     `json:"min_length,omitempty"`
 	MaxLength *int     `json:"max_length,omitempty"`
@@ -66,7 +63,7 @@ type Field struct {
 	Config   FieldConfig
 }
 
-// FieldInput é o que o builder envia: sem ID, e a posição é o índice no array.
+// FieldInput é o que o builder envia: a posição é o índice no array.
 type FieldInput struct {
 	Type     FieldType
 	Label    string
@@ -81,7 +78,7 @@ type Form struct {
 	Title       string
 	Description string
 	Status      Status
-	// PublicSlug é vazio até a primeira publicação e nunca muda depois.
+	// Vazio até a primeira publicação; nunca muda depois.
 	PublicSlug      string
 	PublishedAt     *time.Time
 	SubmissionCount int

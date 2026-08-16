@@ -30,14 +30,12 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
-// UserRepository é declarada aqui, no pacote que CONSOME, e não no que
-// implementa. A dependência aponta para dentro: `auth` não sabe que existe
-// SQLite, e trocar de banco não toca nesta camada.
+// UserRepository é declarada aqui, no pacote que consome, e não no que
+// implementa: `auth` não sabe que existe SQLite.
 type UserRepository interface {
 	Create(ctx context.Context, u User) error
 	FindByEmail(ctx context.Context, email string) (User, error)
 	FindByID(ctx context.Context, id string) (User, error)
-	// LinkGoogleID vincula uma conta Google a um usuário que já existe.
 	LinkGoogleID(ctx context.Context, userID, googleID string) error
 }
 
@@ -82,15 +80,11 @@ func (s *Service) Register(ctx context.Context, name, email, password string) (U
 	return user, nil
 }
 
-// Login devolve o mesmo erro para e-mail inexistente e senha errada.
-//
-// Se o app diz "usuário não encontrado" num caso e "senha incorreta" no outro,
-// o formulário de login vira uma API de consulta: dá para descobrir quem tem
-// conta. Uma mensagem só, um status só — e o mesmo tempo de resposta.
+// Login devolve o mesmo erro, e gasta o mesmo tempo, para e-mail inexistente
+// e senha errada — senão o login vira uma API de consulta de contas.
 func (s *Service) Login(ctx context.Context, email, password string) (User, error) {
 	normalized, err := normalizeEmail(email)
 	if err != nil {
-		// E-mail malformado também não pode revelar nada: mesma resposta.
 		CheckDummyPassword(password)
 		return User{}, ErrInvalidCredentials
 	}
@@ -98,15 +92,13 @@ func (s *Service) Login(ctx context.Context, email, password string) (User, erro
 	user, err := s.users.FindByEmail(ctx, normalized)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			// Paga o custo do bcrypt mesmo sem usuário, senão a diferença de
-			// tempo entrega quem tem conta.
 			CheckDummyPassword(password)
 			return User{}, ErrInvalidCredentials
 		}
 		return User{}, err
 	}
 
-	// Usuário criado só pelo Google não tem hash: não pode entrar por senha.
+	// Usuário só-Google não tem hash e não entra por senha.
 	if user.PasswordHash == "" {
 		CheckDummyPassword(password)
 		return User{}, ErrInvalidCredentials
@@ -131,13 +123,10 @@ func (s *Service) ValidateSession(token string) (string, error) {
 	return s.tokens.Validate(token)
 }
 
-// normalizeEmail valida pela RFC 5322 e devolve em minúsculas, para que o
-// UNIQUE do banco não deixe passar "A@b.com" e "a@b.com" como contas
-// diferentes.
+// normalizeEmail valida e devolve em minúsculas, para o UNIQUE do banco não
+// deixar passar "A@b.com" e "a@b.com" como contas diferentes.
 func normalizeEmail(email string) (string, error) {
 	email = strings.TrimSpace(email)
-	// ParseAddress em vez de regex: regex de e-mail é o exemplo canônico de
-	// código que parece certo e recusa endereço legítimo.
 	addr, err := mail.ParseAddress(email)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s", ErrInvalidEmail, email)

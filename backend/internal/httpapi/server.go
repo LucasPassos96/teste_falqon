@@ -32,8 +32,8 @@ func Run(ctx context.Context, cfg *config.Config, authSvc *auth.Service, formSvc
 	srv := &http.Server{
 		Addr:    cfg.Address,
 		Handler: router,
-		// O zero value do http.Server não tem timeout nenhum: uma conexão que
-		// envia o cabeçalho byte a byte segura uma goroutine para sempre.
+		// O zero value do http.Server não tem timeout nenhum, o que o deixa
+		// vulnerável a Slowloris.
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
@@ -58,7 +58,7 @@ func Run(ctx context.Context, cfg *config.Config, authSvc *auth.Service, formSvc
 	case <-ctx.Done():
 		log.Info("encerrando")
 		// WithoutCancel: o prazo do desligamento não pode herdar o
-		// cancelamento que acabou de acontecer, senão o Shutdown aborta na hora.
+		// cancelamento que acabou de acontecer.
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer cancel()
 

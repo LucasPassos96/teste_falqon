@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	issuer = "form-builder"
-	// signingMethod está fixo e é conferido no parse. Ver Validate.
+	issuer     = "form-builder"
 	signingAlg = "HS256"
 )
 
@@ -25,11 +24,8 @@ func NewTokenIssuer(secret string, ttl time.Duration) *TokenIssuer {
 	return &TokenIssuer{secret: []byte(secret), ttl: ttl}
 }
 
-// Issue emite um token contendo apenas o ID do usuário.
-//
-// JWT é ASSINADO, não criptografado: qualquer pessoa com o token faz base64 do
-// payload e lê o conteúdo. A assinatura garante que ninguém alterou, não que
-// ninguém leu. Por isso não vai e-mail, nome nem papel — só o identificador.
+// Issue emite um token contendo apenas o ID do usuário. JWT é assinado, não
+// criptografado: qualquer um lê o payload, então nada sensível entra nele.
 func (t *TokenIssuer) Issue(userID string) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(t.ttl)
@@ -54,18 +50,13 @@ func (t *TokenIssuer) Validate(raw string) (string, error) {
 
 	_, err := jwt.ParseWithClaims(raw, claims,
 		func(token *jwt.Token) (any, error) {
-			// Segunda barreira, dentro da keyfunc: confere o TIPO do método
-			// antes de entregar o segredo.
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("algoritmo inesperado: %v", token.Header["alg"])
 			}
 			return t.secret, nil
 		},
-		// A barreira principal. A biblioteca entrega o token já parseado e
-		// deixa você devolver a chave; se você devolver o segredo sem olhar o
-		// header `alg`, quem escolhe o algoritmo é o atacante — ele manda
-		// `alg: none` (sem assinatura) ou troca HMAC por RSA, assinando com a
-		// chave pública. É o abuso de JWT mais explorado que existe.
+		// Sem isto, quem escolhe o algoritmo da assinatura é o atacante:
+		// `alg: none` ou troca de HMAC por RSA passariam.
 		jwt.WithValidMethods([]string{signingAlg}),
 		jwt.WithIssuer(issuer),
 		jwt.WithExpirationRequired(),

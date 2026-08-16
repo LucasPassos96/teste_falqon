@@ -10,28 +10,21 @@ import (
 
 // Repository é a fronteira com a persistência.
 //
-// Repare no que NÃO existe aqui: não há `GetForm(ctx, formID)`. Todo método
-// que alcança um formulário exige o dono, e a query correspondente carrega
-// `WHERE id = ? AND user_id = ?`.
-//
-// IDOR — trocar o ID na URL e ler o dado de outra pessoa — é a falha mais
-// comum nesse tipo de aplicação, e acontece porque alguém esqueceu um `if` num
-// handler entre vinte. Se o método simplesmente não pode ser chamado sem o
-// dono, não há o que esquecer: o compilador vira o revisor.
+// Não existe `GetForm(ctx, formID)`: todo método que alcança um formulário
+// exige o dono, e a query carrega `WHERE id = ? AND user_id = ?`. A checagem
+// de posse não pode ser esquecida porque não dá para chamar o método sem ela.
 type Repository interface {
 	Create(ctx context.Context, f Form) error
 	ListOwnedBy(ctx context.Context, ownerID string) ([]Form, error)
 	GetOwnedBy(ctx context.Context, formID, ownerID string) (Form, error)
 	UpdateOwnedBy(ctx context.Context, f Form) error
 	DeleteOwnedBy(ctx context.Context, formID, ownerID string) error
-	// ReplaceFields apaga e reinsere os campos numa transação só.
 	ReplaceFields(ctx context.Context, formID string, fields []Field) error
 }
 
 type Service struct {
 	repo Repository
-	// publicBaseURL monta a URL pública a partir da configuração, para o link
-	// gerado estar correto em qualquer ambiente.
+	// Base do link público, vinda da configuração.
 	publicBaseURL string
 }
 
@@ -67,7 +60,7 @@ func (s *Service) Create(ctx context.Context, ownerID, title, description string
 		UserID:      ownerID,
 		Title:       title,
 		Description: strings.TrimSpace(description),
-		Status:      StatusDraft, // nasce em draft, sempre
+		Status:      StatusDraft,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -78,8 +71,8 @@ func (s *Service) Create(ctx context.Context, ownerID, title, description string
 	return form, nil
 }
 
-// Update altera título e descrição. Ponteiro nil significa "não mexer",
-// distinguindo isso de "definir como vazio" — é um PATCH, não um PUT.
+// Update altera título e descrição. Ponteiro nil significa "não mexer", que é
+// diferente de "definir como vazio".
 func (s *Service) Update(ctx context.Context, formID, ownerID string, title, description *string) (Form, error) {
 	form, err := s.repo.GetOwnedBy(ctx, formID, ownerID)
 	if err != nil {
@@ -108,26 +101,19 @@ func (s *Service) Delete(ctx context.Context, formID, ownerID string) error {
 	return s.repo.DeleteOwnedBy(ctx, formID, ownerID)
 }
 
-// ReplaceFields substitui a lista inteira de campos.
+// ReplaceFields substitui a lista inteira de campos: o array recebido é a
+// verdade e o índice é a posição.
 //
-// O builder é uma unidade de edição, não uma sequência de operações: o usuário
-// reordena, renomeia, remove e só então salva. Com CRUD por campo seria
-// preciso sincronizar a cada interação ou manter um diff. Aqui o array
-// recebido É a verdade e o índice é a posição — quatro endpoints a menos.
-//
-// Custo: os IDs dos campos mudam a cada save. Irrelevante porque só é
-// permitido em draft, quando ainda não existem respostas apontando para eles.
+// Os IDs dos campos mudam a cada save, o que é irrelevante porque a operação
+// só é permitida em draft, quando ainda não há respostas apontando para eles.
 func (s *Service) ReplaceFields(ctx context.Context, formID, ownerID string, inputs []FieldInput) ([]Field, error) {
 	form, err := s.repo.GetOwnedBy(ctx, formID, ownerID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Travar a estrutura depois de publicar elimina, com uma checagem de
-	// status, três problemas: campo removido deixa resposta órfã, campo novo
-	// obrigatório invalida respostas antigas retroativamente, e tipo alterado
-	// deixa "abc" num campo que virou numérico. A solução completa seria
-	// versionar a definição; está documentada como limitação consciente.
+	// Editar a estrutura com respostas existentes deixaria resposta órfã,
+	// invalidaria respostas antigas ou mudaria o tipo de um valor já gravado.
 	if form.IsPublished() {
 		return nil, ErrFormPublished
 	}
@@ -145,7 +131,7 @@ func (s *Service) ReplaceFields(ctx context.Context, formID, ownerID string, inp
 			Label:    strings.TrimSpace(in.Label),
 			HelpText: strings.TrimSpace(in.HelpText),
 			Required: in.Required,
-			Position: i, // o índice no array é a ordem de exibição
+			Position: i,
 			Config:   normalizeConfig(in.Type, in.Config),
 		})
 	}
@@ -156,18 +142,14 @@ func (s *Service) ReplaceFields(ctx context.Context, formID, ownerID string, inp
 	return fields, nil
 }
 
-// Publish gera o slug na primeira publicação e o PRESERVA nas seguintes.
-//
-// Regenerar mataria todo link já distribuído: alguém que despublicasse para
-// corrigir um rótulo e republicasse descobriria, tarde, que o link no e-mail
-// enviado para trezentas pessoas parou de funcionar.
+// Publish gera o slug na primeira publicação e o preserva nas seguintes —
+// regenerar mataria todo link já distribuído.
 func (s *Service) Publish(ctx context.Context, formID, ownerID string) (Form, error) {
 	form, err := s.repo.GetOwnedBy(ctx, formID, ownerID)
 	if err != nil {
 		return Form{}, err
 	}
 
-	// Publicar sem campos geraria um link para uma página vazia.
 	if len(form.Fields) == 0 {
 		return Form{}, ErrNoFields
 	}
@@ -191,8 +173,8 @@ func (s *Service) Publish(ctx context.Context, formID, ownerID string) (Form, er
 	return form, nil
 }
 
-// Unpublish volta para draft mantendo o slug, para que republicar reviva o
-// mesmo link.
+// Unpublish volta para draft mantendo o slug, para republicar reviver o mesmo
+// link.
 func (s *Service) Unpublish(ctx context.Context, formID, ownerID string) (Form, error) {
 	form, err := s.repo.GetOwnedBy(ctx, formID, ownerID)
 	if err != nil {
@@ -208,8 +190,7 @@ func (s *Service) Unpublish(ctx context.Context, formID, ownerID string) (Form, 
 	return form, nil
 }
 
-// normalizeConfig descarta a configuração que não faz sentido para o tipo, em
-// vez de guardar lixo que o validador de submissão teria de ignorar depois.
+// normalizeConfig descarta a configuração que não faz sentido para o tipo.
 func normalizeConfig(t FieldType, c FieldConfig) FieldConfig {
 	switch t {
 	case FieldShortText, FieldLongText:

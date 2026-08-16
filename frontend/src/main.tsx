@@ -4,8 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
-// Fontes auto-hospedadas: nenhuma requisição a CDN externo, então a aplicação
-// roda igual offline e não vaza a visita de ninguém para um terceiro.
+// Fontes auto-hospedadas: nenhuma requisição a CDN externo.
 import '@fontsource/ibm-plex-sans/400.css'
 import '@fontsource/ibm-plex-sans/500.css'
 import '@fontsource/ibm-plex-sans/600.css'
@@ -19,9 +18,6 @@ import { theme } from './theme'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Sem refetch ao voltar para a aba: os dados deste app não mudam por
-      // fora, e o piscar da tela a cada alt-tab é pior que o dado alguns
-      // segundos velho.
       refetchOnWindowFocus: false,
       staleTime: 10_000,
     },

@@ -19,13 +19,9 @@ func NewUserRepo(db *sql.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
-// Confere em tempo de compilação que o repositório satisfaz a interface que o
-// pacote auth declarou.
 var _ auth.UserRepository = (*UserRepo)(nil)
 
 func (r *UserRepo) Create(ctx context.Context, u auth.User) error {
-	// Placeholders `?` sempre: nenhuma concatenação de string com valor vindo
-	// do usuário. A estrutura da query é minha, o dado nunca vira SQL.
 	const q = `
 		INSERT INTO users (id, email, name, password_hash, google_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -37,8 +33,8 @@ func (r *UserRepo) Create(ctx context.Context, u auth.User) error {
 		formatTime(u.CreatedAt), formatTime(u.UpdatedAt),
 	)
 	if err != nil {
-		// O UNIQUE do banco é a autoridade final sobre e-mail duplicado. Um
-		// SELECT antes do INSERT teria uma janela de corrida entre os dois.
+		// O UNIQUE do banco é a autoridade: um SELECT antes do INSERT teria
+		// janela de corrida.
 		if isUniqueViolation(err) {
 			return auth.ErrEmailTaken
 		}
@@ -66,8 +62,6 @@ func (r *UserRepo) LinkGoogleID(ctx context.Context, userID, googleID string) er
 
 	_, err := r.db.ExecContext(ctx, q, googleID, formatTime(time.Now().UTC()), userID)
 	if err != nil {
-		// O UNIQUE de google_id impede que a mesma conta Google seja vinculada
-		// a dois usuários diferentes.
 		if isUniqueViolation(err) {
 			return auth.ErrEmailTaken
 		}
@@ -91,8 +85,6 @@ func (r *UserRepo) scanOne(row *sql.Row) (auth.User, error) {
 		return auth.User{}, fmt.Errorf("ler usuário: %w", err)
 	}
 
-	// sql.NullString porque as colunas são anuláveis: password_hash é NULL
-	// para usuário só-Google e google_id é NULL para usuário só-senha.
 	u.PasswordHash = hash.String
 	u.GoogleID = googleID.String
 	u.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
@@ -105,9 +97,8 @@ func formatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-// nullIfEmpty grava NULL em vez de string vazia, para o UNIQUE de google_id
-// continuar valendo: no SQLite, vários NULL convivem num índice único, mas
-// vários "" colidiriam já no segundo usuário só-senha.
+// nullIfEmpty grava NULL em vez de string vazia: no SQLite vários NULL
+// convivem num índice único, mas vários "" colidiriam.
 func nullIfEmpty(s string) any {
 	if s == "" {
 		return nil

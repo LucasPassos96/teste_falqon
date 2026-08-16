@@ -12,14 +12,9 @@ import {
 import type { FieldType, PublicField } from '../../api/gen'
 
 /**
- * Renderiza um campo a partir da definição vinda da API.
- *
- * Usado no preview do builder E na página pública: um switch num arquivo só
- * decide como cada tipo é exibido no sistema inteiro. Se os dois lugares
- * tivessem cópias, o preview mentiria sobre o formulário real.
- *
- * Recebe `PublicField` porque é o menor denominador comum entre os dois: o
- * builder tem mais dados (position), mas nada que a exibição precise.
+ * Renderiza um campo a partir da definição vinda da API. Usado no preview do
+ * builder e na página pública — se houvesse duas cópias, o preview acabaria
+ * mentindo sobre o formulário real.
  */
 type Props = {
   field: PublicField
@@ -58,8 +53,7 @@ export function FieldRenderer({ field, value, onChange, error, disabled }: Props
           {...common}
           label={field.label}
           required={field.required}
-          // type="email" só liga o teclado certo no celular e a dica do
-          // navegador. Quem decide se o e-mail vale é o backend.
+          // Só melhora o teclado do celular; quem valida é o backend.
           type="email"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -90,7 +84,6 @@ export function FieldRenderer({ field, value, onChange, error, disabled }: Props
             onChange={(e) => onChange(e.target.value)}
           >
             {(field.config?.options ?? []).map((opt) => (
-              // O value enviado é opt.value; o texto exibido é opt.label.
               <MenuItem key={opt.value} value={opt.value}>
                 {opt.label}
               </MenuItem>

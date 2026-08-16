@@ -47,9 +47,8 @@ export default function FormBuilderPage() {
 
   const { data: form, isPending, error } = useQuery(getFormOptions({ path: { formId } }))
 
-  // O array de campos é estado LOCAL, não estado de servidor: o usuário
-  // reordena, renomeia e remove livremente, e só ao salvar isso vira uma
-  // requisição. É a razão de o backend expor um PUT da lista inteira.
+  // Estado local, não de servidor: o usuário edita livremente e só ao salvar
+  // isso vira uma requisição.
   const [campos, setCampos] = useState<FieldInput[]>([])
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')

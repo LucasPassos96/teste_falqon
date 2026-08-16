@@ -20,11 +20,7 @@ import { useSession } from '../auth/useSession'
 import { mensagemDeErro } from '../lib/erros'
 import { cores } from '../theme'
 
-/**
- * Motivos que o callback do Google pode devolver em ?erro=. Traduzir aqui, e
- * não exibir o código cru, é o que mantém a tela legível para quem não faz
- * ideia do que é OAuth.
- */
+/** Motivos que o callback do Google devolve em ?erro=. */
 const ERROS_GOOGLE: Record<string, string> = {
   google_nao_configurado:
     'Login com Google não está configurado neste ambiente. Use e-mail e senha.',
@@ -51,8 +47,6 @@ export default function LoginPage() {
   const destino = (location.state as { from?: string } | null)?.from ?? '/'
 
   const aoEntrar = async () => {
-    // Invalida a sessão para o useSession refazer GET /auth/me e o guard
-    // liberar a rota com o usuário novo.
     await queryClient.invalidateQueries()
     navigate(destino, { replace: true })
   }
@@ -130,8 +124,6 @@ export default function LoginPage() {
                 helperText={aba === 'cadastro' ? 'Mínimo de 8 caracteres' : undefined}
               />
 
-              {/* A mensagem exibida é a tratada pela API, nunca o payload cru:
-                  nada de stack trace ou detalhe de banco na tela. */}
               {erroGoogle && (
                 <Alert severity="warning">
                   {ERROS_GOOGLE[erroGoogle] ?? 'Não foi possível entrar com o Google.'}
@@ -148,15 +140,8 @@ export default function LoginPage() {
 
           <Divider sx={{ my: 3 }}>ou</Divider>
 
-          {/*
-            Link comum, NÃO uma chamada do client TypeScript.
-
-            O fluxo OAuth é uma navegação de navegador: o backend redireciona
-            para o Google, o Google redireciona de volta para o backend, e só
-            então o navegador volta para cá com o cookie de sessão. Um fetch
-            não conseguiria seguir esses redirecionamentos entre origens — e é
-            justamente por isso que o client_secret nunca precisa existir aqui.
-          */}
+          {/* Link comum, não uma chamada do client: o fluxo OAuth é uma
+              navegação de navegador entre origens diferentes. */}
           <Button
             component="a"
             href="/api/v1/auth/google"

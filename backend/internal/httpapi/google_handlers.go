@@ -9,15 +9,12 @@ import (
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
-// StartGoogleLogin redireciona para a tela de consentimento do Google.
-//
-// Responde 302 e não JSON: é navegação de navegador. O frontend só precisa de
-// um link apontando para cá — nenhum código TypeScript participa do fluxo, e é
-// por isso que o client_secret nunca chega ao bundle.
+// StartGoogleLogin redireciona para a tela de consentimento do Google. É
+// navegação de navegador: nenhum código do frontend participa do fluxo, e por
+// isso o client_secret nunca chega ao bundle.
 func (a *API) StartGoogleLogin(_ context.Context, _ gen.StartGoogleLoginRequestObject) (gen.StartGoogleLoginResponseObject, error) {
-	// Sem credenciais, manda de volta para a tela de login com o motivo. O
-	// visitante nunca vê um JSON cru na barra de endereços, e o app segue
-	// utilizável por e-mail e senha.
+	// Sem credenciais, volta para o login com o motivo em vez de exibir um
+	// JSON cru na barra de endereços.
 	if a.google == nil {
 		destino := a.publicBaseURL + "/login?erro=google_nao_configurado"
 		return gen.StartGoogleLogin302Response{
@@ -41,11 +38,8 @@ func (a *API) StartGoogleLogin(_ context.Context, _ gen.StartGoogleLoginRequestO
 	}, nil
 }
 
-// GoogleCallback fecha o fluxo: valida o state, troca o código e abre a sessão.
-//
-// Também responde 302 — o destino final é sempre uma tela do frontend, com o
-// motivo do erro em query param quando algo falha. Isso mantém o visitante
-// dentro da aplicação em vez de deixá-lo olhando um JSON no navegador.
+// GoogleCallback valida o state, troca o código e abre a sessão. O destino é
+// sempre uma tela do frontend, com o motivo do erro em query param.
 func (a *API) GoogleCallback(ctx context.Context, req gen.GoogleCallbackRequestObject) (gen.GoogleCallbackResponseObject, error) {
 	if a.google == nil {
 		destino := a.publicBaseURL + "/login?erro=google_nao_configurado"
@@ -56,8 +50,7 @@ func (a *API) GoogleCallback(ctx context.Context, req gen.GoogleCallbackRequestO
 
 	limparState := a.google.ClearedStateCookie().String()
 
-	// O Google devolve ?error=access_denied quando a pessoa clica em cancelar
-	// na tela de consentimento. Não é falha, é desistência.
+	// ?error=access_denied é a pessoa cancelando na tela do Google.
 	if req.Params.Error != nil && *req.Params.Error != "" {
 		return a.redirecionarComErro("acesso_negado", limparState), nil
 	}
@@ -66,7 +59,6 @@ func (a *API) GoogleCallback(ctx context.Context, req gen.GoogleCallbackRequestO
 		return a.redirecionarComErro("resposta_invalida", limparState), nil
 	}
 
-	// O cookie chega tipado porque está declarado como parâmetro na spec.
 	stateNoCookie := ""
 	if req.Params.OauthState != nil {
 		stateNoCookie = *req.Params.OauthState
@@ -80,8 +72,6 @@ func (a *API) GoogleCallback(ctx context.Context, req gen.GoogleCallbackRequestO
 		case errors.Is(err, auth.ErrEmailNotVerified):
 			return a.redirecionarComErro("email_nao_verificado", limparState), nil
 		default:
-			// Falha inesperada (rede, Google fora do ar) vira erro genérico na
-			// tela; o detalhe fica no log.
 			return nil, err
 		}
 	}
@@ -95,15 +85,9 @@ func (a *API) GoogleCallback(ctx context.Context, req gen.GoogleCallbackRequestO
 	return gen.GoogleCallback302Response{
 		Headers: gen.GoogleCallback302ResponseHeaders{
 			Location: &destino,
-			// Só o cookie de sessão. `Set-Cookie` é o único cabeçalho que NÃO
-			// pode ser dobrado em um valor separado por vírgula, e o tipo
-			// gerado carrega um valor só — juntar os dois produziria um
-			// cabeçalho malformado que o navegador descartaria inteiro.
-			//
-			// O cookie de state fica para trás e expira sozinho em 10 minutos.
-			// Não é problema: ele é de uso único, o valor já foi conferido, e
-			// o código de autorização do Google também é de uso único, então
-			// não há o que reaproveitar.
+			// Só o cookie de sessão: `Set-Cookie` não pode ser dobrado num
+			// valor separado por vírgula. O cookie de state expira sozinho em
+			// 10 minutos e é de uso único.
 			SetCookie: &sessao,
 		},
 	}, nil

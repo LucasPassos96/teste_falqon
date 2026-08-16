@@ -64,9 +64,7 @@ export function FieldEditor({ campo, indice, total, onChange, onRemove, onMover 
               sx={{ minWidth: 170 }}
               value={campo.type}
               onChange={(e) => {
-                // Trocar o tipo limpa a config: as regras de um select não
-                // fazem sentido num número, e o backend descartaria de todo
-                // jeito.
+                // Trocar o tipo limpa a config, que não faz sentido no novo.
                 alterar({ type: e.target.value as FieldType, config: {} })
               }}
             >
@@ -77,8 +75,8 @@ export function FieldEditor({ campo, indice, total, onChange, onRemove, onMover 
               ))}
             </TextField>
 
-            {/* Setas em vez de arrastar: reordenação previsível, acessível por
-                teclado, e sem uma biblioteca de drag-and-drop inteira. */}
+            {/* Setas em vez de arrastar: acessível por teclado e sem
+                biblioteca de drag-and-drop. */}
             <IconButton size="small" disabled={indice === 0} onClick={() => onMover(-1)}>
               <span aria-hidden>↑</span>
             </IconButton>

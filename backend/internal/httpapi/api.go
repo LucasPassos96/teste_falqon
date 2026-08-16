@@ -12,18 +12,14 @@ import (
 	"github.com/LucasPassos96/teste_falqon/backend/internal/httpapi/gen"
 )
 
-// API implementa a interface gerada a partir de api/openapi.yaml. Cada
-// operationId da spec vira um método aqui, e o código não compila enquanto
-// faltar algum.
+// API implementa a interface gerada a partir de api/openapi.yaml: cada
+// operationId da spec vira um método, e falta de método não compila.
 type API struct {
 	auth   *auth.Service
 	forms  *forms.Service
 	public *forms.PublicService
-	// google é nil quando não há credenciais configuradas; os handlers
-	// respondem 501 nesse caso.
-	google *auth.GoogleAuth
-	// publicBaseURL decide se o cookie sai com Secure e, adiante, monta o link
-	// público do formulário.
+	// Nil quando não há credenciais do Google configuradas.
+	google        *auth.GoogleAuth
 	publicBaseURL string
 }
 
@@ -40,8 +36,7 @@ func (a *API) Register(ctx context.Context, req gen.RegisterRequestObject) (gen.
 		return nil, err
 	}
 
-	// Cadastro já autentica: obrigar um login logo depois de criar a conta é
-	// atrito sem ganho de segurança.
+	// Cadastro já autentica.
 	cookie, err := a.newSessionCookie(user.ID)
 	if err != nil {
 		return nil, err
@@ -88,8 +83,6 @@ func (a *API) Logout(_ context.Context, _ gen.LogoutRequestObject) (gen.LogoutRe
 }
 
 func (a *API) GetCurrentUser(ctx context.Context, _ gen.GetCurrentUserRequestObject) (gen.GetCurrentUserResponseObject, error) {
-	// O identificador vem do context, alimentado pelo middleware a partir do
-	// cookie assinado — nunca do payload.
 	userID, ok := auth.UserIDFrom(ctx)
 	if !ok {
 		return nil, auth.ErrInvalidToken
@@ -118,8 +111,6 @@ func (a *API) newSessionCookie(userID string) (string, error) {
 func toGenUser(u auth.User) (gen.User, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
-		// Só acontece se um ID inválido tiver entrado no banco: é bug nosso,
-		// não erro do cliente, e vira 500 com o detalhe no log.
 		return gen.User{}, fmt.Errorf("id de usuário inválido %q: %w", u.ID, err)
 	}
 	return gen.User{

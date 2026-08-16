@@ -17,8 +17,7 @@ const envPrefix = "FB"
 
 type Config struct {
 	Address string `mapstructure:"address"`
-	// PublicBaseURL é a origem do frontend, usada para montar o link público
-	// de um formulário publicado.
+	// Origem do frontend; base do link público de um formulário publicado.
 	PublicBaseURL string   `mapstructure:"public_base_url"`
 	Database      Database `mapstructure:"database"`
 	Auth          Auth     `mapstructure:"auth"`
@@ -41,20 +40,16 @@ type Google struct {
 }
 
 // Configured diz se o login com Google pode ser oferecido. Sem credenciais o
-// servidor sobe assim mesmo e o endpoint responde 501: o app continua
-// utilizável sem configurar o Google, o que é essencial para quem clona o
-// repositório só para avaliá-lo.
+// servidor sobe assim mesmo e o app segue utilizável com e-mail e senha.
 func (g Google) Configured() bool {
 	return g.ClientID != "" && g.ClientSecret != "" && g.RedirectURL != ""
 }
 
-// jwtSecretPlaceholder é o valor que vem no config.example.yaml. O servidor
-// recusa subir com ele: falha barulhenta é melhor do que rodar meses assinando
-// token com um segredo que está publicado no repositório.
+// Valor do config.example.yaml. O servidor recusa subir com ele, senão
+// assinaria sessões com um segredo publicado no repositório.
 const jwtSecretPlaceholder = "troque-isto-por-um-segredo-de-no-minimo-32-bytes"
 
-// jwtSecretMinBytes: segredo HS256 curto é quebrável offline por força bruta a
-// partir de um único token capturado.
+// Segredo HS256 curto é quebrável offline a partir de um único token.
 const jwtSecretMinBytes = 32
 
 var defaults = map[string]any{
@@ -81,8 +76,8 @@ var flagFor = map[string]string{
 	"auth.google.redirect_url":  "google-redirect-url",
 }
 
-// RegisterFlags declara as flags de configuração. Os defaults ficam no mapa
-// `defaults` para não existirem em dois lugares.
+// RegisterFlags declara as flags. Os defaults ficam no mapa `defaults` para
+// não existirem em dois lugares.
 func RegisterFlags(fs *pflag.FlagSet) {
 	fs.String("address", "", `endereço de escuta (default "localhost:8080")`)
 	fs.String("public-base-url", "", `URL base do frontend (default "http://localhost:5173")`)
@@ -101,8 +96,8 @@ func Load(path string, fs *pflag.FlagSet) (*Config, error) {
 
 	for key, def := range defaults {
 		v.SetDefault(key, def)
-		// BindEnv explícito em vez de AutomaticEnv, que não alimenta o
-		// Unmarshal de forma confiável.
+		// BindEnv explícito: o AutomaticEnv do viper não alimenta o Unmarshal
+		// de forma confiável.
 		if err := v.BindEnv(key); err != nil {
 			return nil, fmt.Errorf("vincular env %q: %w", key, err)
 		}
@@ -168,9 +163,8 @@ func (c *Config) Validate() error {
 	return c.validateAuth()
 }
 
-// validateAuth falha o boot em vez de deixar o servidor rodar com uma sessão
-// forjável. É o exemplo de "falha barulhenta": o problema aparece na primeira
-// tentativa de subir, não meses depois num incidente.
+// validateAuth falha o boot em vez de deixar o servidor rodar com sessões
+// forjáveis.
 func (c *Config) validateAuth() error {
 	secret := c.Auth.JWTSecret
 

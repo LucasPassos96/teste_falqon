@@ -48,9 +48,8 @@ export default function SubmissionsPage() {
     return <Alert severity="error">{mensagemDeErro(error)}</Alert>
   }
 
-  // As colunas vêm dos rótulos gravados NAS RESPOSTAS, não da definição atual
-  // do formulário: se um campo foi renomeado depois, a tabela mostra o texto
-  // que o visitante realmente viu.
+  // As colunas vêm dos rótulos gravados nas respostas, não da definição atual:
+  // um campo renomeado depois não reescreve o passado.
   const colunas: string[] = []
   for (const s of data.items) {
     for (const a of s.answers) {
@@ -130,10 +129,8 @@ export default function SubmissionsPage() {
                         {new Date(s.submitted_at).toLocaleString('pt-BR')}
                       </TableCell>
                       {colunas.map((c) => (
-                        // {porRotulo[c]} passa por JSX, então o React escapa:
-                        // um <script> enviado por um visitante anônimo aparece
-                        // como TEXTO nesta tela, que roda numa sessão
-                        // privilegiada. É aqui que uma XSS armazenada morderia.
+                        // Passa por JSX, então o React escapa: conteúdo de
+                        // visitante anônimo aparece como texto nesta tela.
                         <TableCell key={c}>{porRotulo[c] ?? '—'}</TableCell>
                       ))}
                     </TableRow>

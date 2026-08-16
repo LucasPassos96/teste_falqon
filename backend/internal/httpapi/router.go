@@ -38,21 +38,18 @@ func NewRouter(cfg *config.Config, authSvc *auth.Service, formSvc *forms.Service
 			requireSession(authSvc, publicOperations(spec)),
 		},
 		gen.StrictHTTPServerOptions{
-			// Dois tratadores distintos de propósito: falha ao decodificar o
-			// pedido é erro do cliente (422); falha ao produzir a resposta é
-			// erro de domínio, classificado caso a caso.
+			// Falha ao decodificar o pedido é erro do cliente; falha ao
+			// produzir a resposta é erro de domínio.
 			RequestErrorHandlerFunc:  requestErrorHandler(log),
 			ResponseErrorHandlerFunc: errorHandler(log),
 		},
 	)
 
-	// As rotas de /api/v1 são registradas pelo roteador gerado, não à mão.
 	gen.HandlerWithOptions(handler, gen.ChiServerOptions{
 		BaseURL:    "/api/v1",
 		BaseRouter: r,
 	})
 
-	// A spec que gerou este binário, servida pelo próprio binário.
 	r.Get("/openapi.json", handleSpec)
 
 	return r, nil

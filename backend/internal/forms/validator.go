@@ -12,13 +12,9 @@ const (
 	maxOptions        = 100
 )
 
-// ValidateFieldDefinitions confere a definição que o ADMIN está salvando.
-//
-// É diferente da validação de submissão (que confere a resposta de um
-// visitante contra esta definição). Esta existe para o banco nunca guardar
-// config incoerente: sem ela, o admin salva um `select` sem opções, publica, e
-// o visitante recebe um campo impossível de preencher — erro que só aparece em
-// produção, com o link já distribuído.
+// ValidateFieldDefinitions confere a definição que o admin está salvando, para
+// o banco nunca guardar config incoerente — um select sem opções, por exemplo,
+// só apareceria como problema depois de publicado.
 func ValidateFieldDefinitions(inputs []FieldInput) error {
 	if len(inputs) > MaxFields {
 		return fmt.Errorf("%w: máximo de %d campos, recebi %d", ErrTooManyFields, MaxFields, len(inputs))
@@ -26,7 +22,7 @@ func ValidateFieldDefinitions(inputs []FieldInput) error {
 
 	for i, in := range inputs {
 		if err := validateFieldDefinition(in); err != nil {
-			// O índice é a única referência estável: o campo ainda não tem ID.
+			// O índice é a única referência: o campo ainda não tem ID.
 			return fmt.Errorf("campo %d: %w", i+1, err)
 		}
 	}
@@ -37,9 +33,7 @@ func validateFieldDefinition(in FieldInput) error {
 	if strings.TrimSpace(in.Label) == "" {
 		return fmt.Errorf("%w: rótulo é obrigatório", ErrInvalidField)
 	}
-	// RuneCountInString e não len(): len conta BYTES, e "ação" tem 4
-	// caracteres mas 5 bytes. Um limite implementado com len recusaria texto
-	// perfeitamente válido em português.
+	// RuneCountInString e não len(): len conta bytes.
 	if utf8.RuneCountInString(in.Label) > maxLabelLength {
 		return fmt.Errorf("%w: rótulo acima de %d caracteres", ErrInvalidField, maxLabelLength)
 	}
@@ -55,7 +49,6 @@ func validateFieldDefinition(in FieldInput) error {
 	case FieldSelect:
 		return validateOptions(in.Config)
 	case FieldEmail, FieldCheckbox:
-		// Não aceitam configuração; o que vier é ignorado na persistência.
 		return nil
 	default:
 		return fmt.Errorf("%w: tipo %q não suportado", ErrInvalidField, in.Type)
@@ -69,8 +62,7 @@ func validateLengthConfig(c FieldConfig) error {
 	if c.MaxLength != nil && *c.MaxLength < 1 {
 		return fmt.Errorf("%w: comprimento máximo precisa ser positivo", ErrInvalidField)
 	}
-	// Sem esta checagem o campo fica impossível de preencher: nenhum texto
-	// satisfaz mínimo 10 e máximo 5 ao mesmo tempo.
+	// Sem isto o campo fica impossível de preencher.
 	if c.MinLength != nil && c.MaxLength != nil && *c.MinLength > *c.MaxLength {
 		return fmt.Errorf("%w: comprimento mínimo (%d) maior que o máximo (%d)",
 			ErrInvalidField, *c.MinLength, *c.MaxLength)
@@ -99,7 +91,6 @@ func validateOptions(c FieldConfig) error {
 		if strings.TrimSpace(opt.Value) == "" || strings.TrimSpace(opt.Label) == "" {
 			return fmt.Errorf("%w: opção com valor ou rótulo vazio", ErrInvalidField)
 		}
-		// Valor duplicado tornaria a resposta ambígua na hora de exibir.
 		if vistos[opt.Value] {
 			return fmt.Errorf("%w: opção %q duplicada", ErrInvalidField, opt.Value)
 		}

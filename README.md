@@ -1,616 +1,197 @@
 # Form Builder
 
-Aplicação de criação e publicação de formulários. Um usuário autenticado cria
-formulários numa área administrativa, publica, e a aplicação gera um link
-público que qualquer pessoa pode preencher sem autenticação. As respostas ficam
-persistidas e são consultáveis pelo administrador.
+Aplicação para criar formulários, publicá-los como link e receber respostas.
 
-Backend em Go, frontend em React + TypeScript, e um contrato OpenAPI 3 que gera
-os dois lados.
+Um usuário autenticado monta um formulário com múltiplos campos numa área
+administrativa e o publica. A aplicação gera uma URL pública que qualquer
+pessoa pode abrir e preencher **sem ter conta**. As respostas ficam
+persistidas e são consultáveis por quem criou o formulário.
 
-> **Status:** em construção. Este README cresce a cada fase entregue; hoje ele
-> cobre o esqueleto do backend e o pipeline de geração de código.
+Seis tipos de campo: texto curto, texto longo, e-mail, número, seleção e caixa
+de seleção — cada um com suas próprias regras de validação, aplicadas no
+servidor.
+
+---
+
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Backend | Go 1.24+, chi, cobra, viper |
+| Banco | SQLite (`modernc.org/sqlite`, Go puro, sem cgo) |
+| Migrations | goose, embutidas no binário |
+| Contrato | OpenAPI 3 — gera o servidor Go e o client TypeScript |
+| Frontend | React 19, TypeScript, Vite |
+| Interface | MUI |
+| Rotas | React Router |
+| Estado remoto | TanStack Query |
+| Autenticação | JWT em cookie HttpOnly, e-mail/senha ou Google |
+| Tarefas | go-task |
 
 ---
 
 ## Pré-requisitos
 
-| Ferramenta | Versão | Para quê |
-|---|---|---|
-| [Go](https://go.dev/dl/) | 1.24+ | backend |
-| [Node.js](https://nodejs.org) | 20+ | frontend |
-| [go-task](https://taskfile.dev) | 3.x | entrypoint de todos os comandos |
+- [Go 1.24+](https://go.dev/dl/)
+- [Node.js 20+](https://nodejs.org)
+- [go-task](https://taskfile.dev): `go install github.com/go-task/task/v3/cmd/task@latest`
 
-```bash
-go install github.com/go-task/task/v3/cmd/task@latest
-```
+Nada além disso. Sem Docker, sem banco para instalar, sem compilador C. Os
+geradores de código já vêm declarados no projeto.
 
-`go install` coloca o binário em `$(go env GOPATH)/bin` — garanta que esse
-diretório está no `PATH`.
-
-Não é necessário Docker nem compilador C. O gerador de código Go está fixado
-como `tool` no `go.mod`, então **não há ferramenta para instalar à parte**.
+> `go install` coloca o binário em `$(go env GOPATH)/bin` — confirme que esse
+> diretório está no seu `PATH`.
 
 ---
 
-## Executando
+## Rodando
 
 ```bash
 task setup      # dependências + cria backend/config.yaml com um segredo próprio
-task dev:api    # backend em localhost:8080
-task dev:web    # frontend em localhost:5173  (outro terminal)
+task dev:api    # backend em http://localhost:8080
+task dev:web    # frontend em http://localhost:5173   (outro terminal)
 ```
+
+Abra <http://localhost:5173> e crie uma conta.
 
 **Não há arquivo para editar antes de rodar.** O `task setup` gera o
-`backend/config.yaml` a partir do template embutido, já com um segredo de
-sessão criado por `crypto/rand` — sem depender de `openssl`, que não vem no
-Windows. Rodar `task setup` de novo **não** troca o segredo (isso invalidaria
-as sessões ativas); para forçar, `server init-config --force`.
-
-Abra <http://localhost:5173>. A página consulta a API e mostra a resposta.
-
-Verificando só o backend:
-
-```bash
-curl http://localhost:8080/api/v1/health
-# {"status":"ok"}
-
-curl http://localhost:8080/openapi.json
-# a especificação servida pelo próprio binário
-```
-
-Outros comandos:
-
-```bash
-task --list     # lista tudo
-task generate   # regera o servidor Go e o client TypeScript
-task verify     # falha se o gerado estiver fora de sincronia com a spec
-task build      # compila para ./bin/server
-task vet        # análise estática
-```
-
-**Sem CORS em desenvolvimento:** o Vite faz proxy de `/api` para
-`localhost:8080`, então navegador e API são a mesma origem. Isso elimina toda
-uma classe de problema de preflight e de cookie que apareceria mais adiante,
-na autenticação.
+`backend/config.yaml` e o banco é criado no primeiro boot, já com as migrations
+aplicadas.
 
 ---
 
-## Configurando a aplicação
+## Testando o fluxo
 
-A configuração vem de quatro fontes, nesta ordem de precedência:
-
-**flag > variável de ambiente > arquivo > default**
-
-As três formas que o desafio cita funcionam e podem ser combinadas:
-
-```bash
-server run --config=./config.yaml        # arquivo
-server run --address=localhost:9000      # flag
-FB_ADDRESS=localhost:9000 server run     # variável de ambiente
-```
-
-O `task setup` já cria o `backend/config.yaml` para você. Para criar um em
-outro lugar, ou recriar:
-
-```bash
-cd backend
-go run ./cmd/server init-config                 # cria ./config.yaml
-go run ./cmd/server init-config --out=/tmp/x.yaml
-go run ./cmd/server init-config --force         # sobrescreve, invalidando sessões
-```
-
-`config.yaml` está no `.gitignore` — **nenhum segredo é versionado**. O
-template fica em `backend/internal/config/config.example.yaml`, embutido no
-binário, e traz um placeholder que o servidor explicitamente recusa.
-
-Sem `--config`, o servidor procura um `config.yaml` no diretório atual e segue
-normalmente se não encontrar. **Com** `--config` apontando para um arquivo
-inexistente, ele falha no boot: se você pediu um arquivo específico, subir em
-silêncio com os valores padrão esconderia o problema.
-
-### Chaves disponíveis
-
-| Chave (YAML) | Variável de ambiente | Flag | Default |
-|---|---|---|---|
-| `address` | `FB_ADDRESS` | `--address` | `localhost:8080` |
-| `public_base_url` | `FB_PUBLIC_BASE_URL` | `--public-base-url` | `http://localhost:5173` |
-| `database.path` | `FB_DATABASE_PATH` | `--db-path` | `./formbuilder.db` |
-| `auth.jwt_secret` | `FB_AUTH_JWT_SECRET` | `--jwt-secret` | — (obrigatório) |
-| `auth.session_ttl` | `FB_AUTH_SESSION_TTL` | `--session-ttl` | `24h` |
-
-**`auth.jwt_secret` é obrigatório e o servidor não sobe sem ele.** Recusa
-também um segredo com menos de 32 bytes e o valor de exemplo do template.
-Falhar no boot é deliberado: a alternativa é o servidor rodar meses assinando
-sessões com um segredo publicado no repositório, e ninguém perceber.
-
-Isso não custa nada a quem clona, porque o `task setup` já gera um segredo
-próprio — a exigência protege sem criar passo manual.
-
-O prefixo é sempre `FB_`, e chaves aninhadas trocam `.` por `_`
-(`database.path` → `FB_DATABASE_PATH`).
-
-Configuração inválida derruba o boot com mensagem explícita, em vez de virar
-comportamento estranho na hora da requisição.
+1. Crie uma conta em <http://localhost:5173>
+2. **Criar formulário** → dê um título
+3. **Adicionar campo** algumas vezes; troque os tipos e use ↑ ↓ para reordenar
+4. **Salvar campos** → a pré-visualização aparece abaixo
+5. **Publicar** → surge o link público
+6. Abra o link **numa aba anônima** — é o que o visitante vê, sem login
+7. Envie o formulário em branco: o backend recusa e aponta cada campo
+8. Preencha e envie
+9. Volte ao admin → **Respostas**
 
 ---
 
-## Configurando o banco e executando migrations
+## Configuração
 
-**Não há banco para instalar nem container para subir.** A persistência é
-SQLite através de [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite),
-um driver escrito em Go puro: sem cgo, sem compilador C, sem Docker. É o que
-faz o projeto rodar igual em Windows, macOS e Linux, que é o que o desafio pede.
-
-O banco é um arquivo, criado no primeiro uso:
+Nada precisa ser configurado para rodar — o `task setup` cuida disso. Para
+mudar alguma coisa, edite `backend/config.yaml`. Toda chave também aceita
+variável de ambiente com prefixo `FB_` e flag de linha de comando, nesta
+precedência: **flag > env > arquivo > default**.
 
 ```bash
-task migrate                                  # aplica as migrations
-server migrate --db-path=./outro.db           # ou apontando para outro arquivo
+server run --address=localhost:9000
+FB_DATABASE_PATH=./outro.db server run
 ```
 
-O comando é idempotente — rodar duas vezes seguidas não faz nada na segunda.
-**O servidor também aplica as migrations no boot**, então um clone limpo sobe
-com `task dev:api` sem passo manual. `server migrate` existe para preparar o
-banco sem subir a API.
+O banco é um arquivo SQLite criado no primeiro boot, e as migrations rodam
+sozinhas junto. `task migrate` existe para aplicá-las sem subir a API.
 
-As migrations vivem em `backend/internal/storage/sqlite/migrations/` e são
-embutidas no binário com `embed.FS`: o executável não depende de encontrar os
-arquivos `.sql` no disco. O versionamento é do
-[goose](https://github.com/pressly/goose), que registra o estado na tabela
-`goose_db_version`.
-
-### Os pragmas, e por que estão no DSN
+**Login com Google é opcional** — sem credenciais, a aplicação funciona inteira
+com e-mail e senha. Para habilitar, crie um *ID do cliente OAuth* do tipo
+Aplicativo da Web em <https://console.cloud.google.com/apis/credentials>, com
+esta URI de redirecionamento:
 
 ```
-file:formbuilder.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)
+http://localhost:8080/api/v1/auth/google/callback
 ```
 
-`foreign_keys` é **desligado por padrão** no SQLite, por compatibilidade
-retroativa — sem ele, todos os `ON DELETE CASCADE` do schema seriam
-decorativos. `journal_mode=WAL` permite leitores concorrentes com um escritor.
-`busy_timeout` faz o escritor esperar em vez de estourar `database is locked`
-na hora.
-
-Eles estão no **DSN** e não num `PRAGMA` executado depois porque valem **por
-conexão**, e o `database/sql` mantém um pool: um comando avulso configuraria
-apenas a primeira conexão, e o bug apareceria de forma intermitente. No DSN, o
-driver aplica em toda conexão nova.
+e preencha `auth.google.client_id` e `auth.google.client_secret` em
+`backend/config.yaml`, que está no `.gitignore`.
 
 ---
 
 ## Gerando a especificação OpenAPI e o client TypeScript
 
 ```bash
-task generate
+task generate   # gera os dois lados
+task verify     # falha se o gerado estiver fora de sincronia com a spec
 ```
 
-Um comando gera os dois lados.
-
-### Como funciona
-
-[`api/openapi.yaml`](api/openapi.yaml) é a **fonte da verdade**. Dois geradores
+[`api/openapi.yaml`](api/openapi.yaml) é a fonte da verdade. Dois geradores
 leem esse arquivo:
 
-```
-                      api/openapi.yaml
-                     /                \
-          oapi-codegen                @hey-api/openapi-ts
-               ↓                              ↓
-   backend/internal/httpapi/gen        frontend/src/api/gen
-   (interface + tipos Go)              (tipos + client + hooks Query)
-```
+- **`oapi-codegen`** → interface e tipos Go em `backend/internal/httpapi/gen/`
+- **`@hey-api/openapi-ts`** → tipos, client e hooks do TanStack Query em
+  `frontend/src/api/gen/`
 
-O fluxo de trabalho ao mudar a API:
+Ao mudar a API: edite `api/openapi.yaml`, rode `task generate`. O Go para de
+compilar até o handler novo existir, e o TypeScript para de tipar se o front
+usar o campo antigo.
 
-1. Edita `api/openapi.yaml`
-2. `task generate`
-3. O Go **para de compilar** até o handler novo existir
-4. O TypeScript **para de tipar** se o front usar o campo antigo
+O código gerado é versionado de propósito, para mudança de contrato aparecer no
+diff. `task verify` regera tudo e falha se o resultado diferir do commitado.
 
-Isso não é teoria — dá para reproduzir. Adicione um endpoint na spec, rode
-`task generate` e compile:
-
-```
-*API does not implement gen.StrictServerInterface (missing method GetPing)
-```
-
-Renomeie um campo de um schema e rode `tsc`:
-
-```
-error TS2339: Property 'status' does not exist on type 'Health'.
-```
-
-Divergir da spec é erro de compilação, não bug em produção.
-
-### Por que a spec é escrita à mão e não extraída do código
-
-O desafio aceita as duas formas: especificação *"gerada automaticamente a
-partir do backend **ou** parte de um processo de geração integrado ao código"*.
-A segunda foi escolhida de propósito.
-
-Com anotações no código, a spec **descreve** o que o backend faz: se o handler
-está errado, a spec documenta o erro fielmente. Com spec-first e o
-`strict-server` do `oapi-codegen`, o Go implementa uma interface gerada — um
-handler fora do contrato não compila. E o mesmo arquivo alimenta o client
-TypeScript, então os dois lados derivam da mesma fonte e não têm como divergir.
-
-O custo é escrever YAML à mão, que é verboso. Num time com API mudando rápido,
-code-first reduz atrito, e aí a compensação seria teste de contrato.
-
-### O código gerado é versionado
-
-`backend/internal/httpapi/gen/` e `frontend/src/api/gen/` estão no repositório
-de propósito: mudança de contrato aparece no diff do PR, revisável, em vez de
-acontecer invisível no build. `task verify` regera tudo e falha se o resultado
-diferir do que está commitado — pega quem editou código gerado à mão ou
-esqueceu de rodar `task generate`. É o que roda em CI.
-
-### As ferramentas não precisam ser instaladas
-
-O `oapi-codegen` está fixado no `go.mod` com a diretiva `tool`, então
-`go tool oapi-codegen` usa a versão exata que o projeto declara. O
-`@hey-api/openapi-ts` vem do `package.json`. Ninguém precisa acertar a versão
-de nada na mão, e não existe "na minha máquina funciona" por diferença de
-ferramenta.
+O servidor também expõe a spec que o gerou, em <http://localhost:8080/openapi.json>.
 
 ---
 
-## Autenticação
-
-Sessão em **JWT HS256 dentro de um cookie `HttpOnly`**.
+## Comandos
 
 ```bash
-curl -c j.txt -X POST localhost:8080/api/v1/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Ana","email":"ana@exemplo.com","password":"uma-senha-longa"}'
-
-curl -b j.txt localhost:8080/api/v1/auth/me
+task --list     # lista tudo
+task setup      # dependências e configuração inicial
+task dev:api    # backend
+task dev:web    # frontend
+task migrate    # migrations
+task generate   # regera Go e TypeScript a partir da spec
+task verify     # confere se o gerado está em sincronia
+task test       # testes do backend
+task build      # compila para ./bin/server
 ```
-
-### As decisões, e o porquê de cada uma
-
-**Cookie `HttpOnly` em vez de token no `localStorage`.** O `localStorage` é
-legível por qualquer JavaScript da página — uma XSS, minha ou de uma
-dependência, entrega o token. Com `HttpOnly`, o JavaScript não alcança o
-cookie. O custo é CSRF, coberto por `SameSite=Lax`. O trade-off honesto: o JWT
-me poupa a tabela de sessão mas **não tem revogação** — o logout apaga o cookie
-do navegador, e um token vazado vale até expirar. Por isso o TTL é curto.
-Sessão opaca em banco é o passo seguinte.
-
-**`Secure` no cookie é condicional.** Ligado em `http` de desenvolvimento, o
-navegador descartaria o cookie **em silêncio** e o login pareceria quebrado sem
-nenhum erro visível. Ele acompanha o esquema do `public_base_url`.
-
-**`jwt.WithValidMethods` no parse.** A biblioteca entrega o token já parseado e
-deixa você devolver a chave. Devolvendo o segredo sem olhar o header `alg`,
-quem valida o algoritmo é o atacante: ele manda `alg: none` ou troca HMAC por
-RSA. São duas linhas para fechar o abuso de JWT mais explorado que existe.
-
-**O payload do JWT tem só o ID do usuário.** JWT é **assinado, não
-criptografado**: qualquer um faz base64 do payload e lê. A assinatura garante
-que ninguém alterou, não que ninguém leu.
-
-**bcrypt com a senha limitada a 72 bytes.** O bcrypt ignora tudo depois do byte
-72 **sem avisar**. Sem validar isso, uma senha de 100 caracteres é secretamente
-uma de 72, e duas senhas diferentes com o mesmo prefixo produzem o mesmo hash.
-Recuso na entrada em vez de truncar em silêncio.
-
-**Mínimo de 8 caracteres, sem exigir símbolo ou maiúscula.** Regras de
-complexidade empurram o usuário para `Senha@123` — previsível e curta.
-Comprimento é o que importa (NIST 800-63B).
-
-**E-mail inexistente e senha errada devolvem a mesma resposta — e gastam o
-mesmo tempo.** A mensagem única impede que o login vire uma API de consulta de
-contas. Só que sem usuário eu retornaria em microssegundos, contra ~60ms
-comparando um hash real: a diferença é mensurável pela rede, o mesmo vazamento
-por cronômetro. Então o caminho "usuário não encontrado" roda um bcrypt
-descartável contra um hash fixo, só para pagar o mesmo custo.
-
-**A proteção das rotas é derivada da spec.** O `openapi.yaml` declara
-`cookieAuth` globalmente; uma rota pública precisa dizer `security: []`. O
-middleware **lê essa declaração da spec embutida no boot** e monta a lista de
-operações abertas. Nenhuma lista de rotas protegidas é mantida à mão, então
-rota nova nasce protegida e abrir uma é uma linha visível no diff da spec.
-
-**`Cache-Control: no-store` nas respostas autenticadas**, para o botão voltar
-não recuperar dado privado depois do logout.
-
-### O que não tem, conscientemente
-
-- Rate limiting nos endpoints de autenticação (previsto, ainda não implementado)
-- Bloqueio de conta após N tentativas — mal feito, vira DoS de conta
-- 2FA, verificação de e-mail no cadastro e recuperação de senha
-- `/auth/register` revela que um e-mail já existe (409). Trade-off aceito por
-  UX numa área administrativa fechada
-
----
-
-## Formulários
-
-Um formulário nasce em `draft`, ganha campos, e ao ser publicado recebe um slug
-que vira a URL pública.
-
-```bash
-curl -b j.txt -X POST localhost:8080/api/v1/forms \
-  -H 'Content-Type: application/json' -d '{"title":"Inscrição"}'
-
-curl -b j.txt -X PUT localhost:8080/api/v1/forms/{id}/fields \
-  -H 'Content-Type: application/json' \
-  -d '[{"type":"short_text","label":"Nome","required":true}]'
-
-curl -b j.txt -X POST localhost:8080/api/v1/forms/{id}/publish
-# → {"status":"published","public_slug":"Zx1NDYCs07tU",
-#    "public_url":"http://localhost:5173/f/Zx1NDYCs07tU"}
-```
-
-Seis tipos de campo: `short_text`, `long_text`, `email`, `number`, `select` e
-`checkbox`.
-
-### As decisões, e o porquê de cada uma
-
-**A defesa contra IDOR está na assinatura do repositório, não na disciplina do
-handler.** Não existe `GetForm(ctx, formID)` — só `GetOwnedBy(ctx, formID,
-ownerID)`, cuja query carrega `WHERE id = ? AND user_id = ?`. IDOR (trocar o ID
-na URL e ler o dado de outra pessoa) é a falha mais comum nesse tipo de
-aplicação, e acontece porque alguém esqueceu um `if` num handler entre vinte.
-Se o método não pode ser chamado sem o dono, não há o que esquecer: o
-compilador vira o revisor. O `ownerID` vem do cookie assinado, via context,
-nunca do payload.
-
-**404, não 403.** 403 significa "existe, mas não é seu", o que já é informação.
-O repositório devolve o mesmo erro para inexistente e para alheio, então nem o
-handler consegue distinguir os dois casos.
-
-**`PUT /fields` substitui a lista inteira, em vez de CRUD por campo.** O
-builder é uma unidade de edição, não uma sequência de operações: o usuário
-reordena, renomeia, remove e só então salva. Com CRUD granular seria preciso
-sincronizar a cada interação ou manter um diff. Aqui o array recebido *é* a
-verdade e o índice é a posição — quatro endpoints a menos. Server-side é uma
-transação de delete + insert, e a transação é o que impede um erro no meio de
-deixar o formulário sem campo nenhum. Custo: os IDs dos campos mudam a cada
-save, o que é irrelevante porque só é permitido em draft.
-
-**A estrutura trava depois de publicar** (`PUT /fields` responde 409). Editar
-campos com respostas existentes gera três problemas: campo removido deixa
-resposta órfã, campo novo obrigatório invalida respostas antigas
-retroativamente, e tipo alterado deixa `"abc"` num campo que virou numérico.
-Uma checagem de status elimina os três. A solução correta seria versionar a
-definição (`form_versions`), com a submissão apontando para a versão que o
-visitante realmente viu — está na lista de limitações.
-
-**O slug é gerado uma vez e preservado ao despublicar e republicar.**
-Regenerar mataria todo link já distribuído: quem despublicasse para corrigir um
-rótulo descobriria, tarde, que o link enviado para trezentas pessoas parou de
-funcionar. São 12 caracteres base62 (~71 bits) de `crypto/rand` — e é
-`crypto/rand` e não `math/rand` porque o segundo é determinístico, e a partir de
-alguns slugs observados dá para prever todos os outros.
-
-**Sem `UNIQUE(form_id, position)`, só um índice.** Constraint única em posição
-transforma qualquer reordenação num quebra-cabeça de updates temporários, e o
-SQLite não tem constraint deferida prática. A ordenação é reescrita inteira a
-cada save.
-
-**`config` como uma coluna JSON.** Regras que só existem para certos tipos
-(`options` de select, `min_length` de texto, `min`/`max` de número) ficam num
-JSON único, validado na entrada — então o banco nunca guarda config inválida, e
-config incoerente com o tipo é descartada. A alternativa era uma coluna por
-regra (tabela esparsa e cheia de NULL) ou uma tabela separada (mais joins).
-
-**Tetos explícitos:** 50 campos por formulário, 100 opções por select, 200
-caracteres de rótulo. Contados em *runes*, não bytes: `len("ação")` em Go
-devolve 5, não 4, e um limite implementado com `len` recusaria texto
-perfeitamente válido em português.
-
----
-
-## Fluxo público e respostas
-
-Quem tem o link preenche, sem login:
-
-```bash
-curl localhost:8080/api/v1/public/forms/{slug}
-
-curl -X POST localhost:8080/api/v1/public/forms/{slug}/submissions \
-  -H 'Content-Type: application/json' \
-  -d '{"answers":[{"field_id":"…","value":"Ana"}]}'
-```
-
-E o admin lê o que chegou:
-
-```bash
-curl -b j.txt 'localhost:8080/api/v1/forms/{id}/submissions?limit=50&offset=0'
-```
-
-### As decisões, e o porquê de cada uma
-
-**Confiança zero no que o cliente manda.** O backend aceita **apenas** pares
-`field_id` + `value`. Obrigatoriedade, tipo, faixa e opções do select são
-sempre relidos do banco a partir do slug — não há como o visitante mandar
-`required: false` nem inventar um campo. `field_id` que não pertence ao
-formulário é **rejeitado**, não ignorado: ignorar em silêncio esconde bug de
-integração.
-
-**A validação percorre a definição, não o payload.** Iterando sobre as
-respostas recebidas, um campo obrigatório simplesmente omitido pelo cliente
-passaria despercebido. Percorrendo a definição, ausência e vazio caem na mesma
-regra.
-
-**Todos os erros de uma vez.** O visitante corrige o formulário inteiro numa
-passada, em vez de descobrir um problema por vez. É uma decisão de UX que virou
-decisão de tipo: `field_errors` é uma lista.
-
-**Comprimento contado em runes, não bytes.** `len("ação")` em Go devolve **5**,
-não 4 — `ç` e `ã` ocupam dois bytes cada em UTF-8. Um limite de 10 caracteres
-implementado com `len` recusaria um nome perfeitamente válido em português. O
-teste `acento não conta dobrado` existe exatamente para travar essa regressão.
-
-**Quem valida também canoniza.** O service persiste o retorno da validação,
-nunca o payload original, então é impossível gravar algo que não passou pelo
-validador. `"030"` vira `"30"`, `"Ana@Exemplo.COM"` vira `"ana@exemplo.com"`, e
-o checkbox vira `"true"`/`"false"`.
-
-**O rótulo é copiado para a resposta.** Se o admin renomear "Nome" para "Nome
-completo" depois, as respostas antigas continuam legíveis com o texto que o
-visitante realmente viu. É denormalização deliberada: uma coluna a mais em
-troca de uma tela que não mente — o mesmo raciocínio de congelar o preço no
-item do pedido em vez de ler do produto.
-
-**Schemas separados para admin e visitante.** `GET /public/forms/{slug}`
-devolve **só** título, descrição e os campos. Sem `user_id`, sem
-`submission_count`, sem timestamps, sem o id interno do formulário. São dois
-schemas distintos na OpenAPI (`Form` e `PublicForm`) justamente para que
-adicionar um campo no admin não passe a vazar no público seis meses depois.
-
-**Formulário em draft responde 404 igual a inexistente**, para não confirmar
-que o rascunho existe.
-
-**Não sanitizo na entrada; escapo na saída.** Um `<script>` enviado numa
-resposta é guardado como texto puro. Sanitizar na entrada destrói o dado —
-alguém pode legitimamente responder `<script>` numa pergunta sobre código — e
-obriga a adivinhar em que contexto aquele texto será renderizado. O ponto
-sensível é a tela de respostas do admin, onde conteúdo de um visitante anônimo
-é renderizado numa sessão privilegiada; lá o React escapa tudo que passa por
-JSX, e `dangerouslySetInnerHTML` não aparece no projeto.
-
-**Corpo limitado a 1MB** com `http.MaxBytesReader`. O endpoint público é
-anônimo e ilimitado por natureza: sem teto, uma única requisição aloca memória
-até derrubar o processo. O `MaxBytesReader` corta a leitura **no** limite, em
-vez de bufferizar tudo antes de reclamar.
-
-**A posse do formulário é resolvida antes de listar as respostas.** Sem isso, a
-proteção do recurso pai não valeria nada: bastaria conhecer o id de um
-formulário alheio para ler tudo que responderam nele.
-
-### Testes
-
-O validador de submissão é o único pacote com suíte de testes, e é onde ela
-paga o próprio custo: são seis tipos de campo × obrigatório/opcional × regras
-de faixa, tudo lógica pura, sem HTTP e sem banco.
-
-```bash
-task test
-```
-
----
-
-## Frontend
-
-React 19 + TypeScript, com Vite, MUI, React Router e TanStack Query. Todo o
-código que fala com a API é gerado a partir do `openapi.yaml` — não há um
-`fetch` escrito à mão no projeto.
-
-| Rota | Tela | Acesso |
-|---|---|---|
-| `/login` | Entrar e criar conta | público |
-| `/` | Lista de formulários | sessão |
-| `/forms/:id` | Builder de campos, com preview | sessão |
-| `/forms/:id/submissions` | Respostas recebidas | sessão |
-| `/f/:slug` | Formulário público | público |
-
-### As decisões, e o porquê de cada uma
-
-**O front não sabe se está logado — ele pergunta.** O cookie de sessão é
-`HttpOnly`, então o JavaScript não consegue lê-lo nem decodificar o token, que
-é exatamente o objetivo. O estado de sessão vem de `GET /auth/me` via TanStack
-Query: enquanto carrega, splash; 401, redireciona. Isso também evita o *flash*
-de interface administrativa antes do redirecionamento.
-
-**O guard de rota é UX, não segurança.** `RequireAuth` evita que a pessoa veja
-uma tela quebrada — nada além disso. Qualquer um edita o JavaScript no
-navegador e "entra" na rota administrativa; ela renderiza vazia, porque quem
-protege é o middleware no Go. Segurança é server-side; o front cuida da
-experiência.
-
-**`queryClient.clear()` no logout.** Sem isso o cache do TanStack Query
-sobrevive: o próximo login na mesma máquina exibiria por um instante os
-formulários do usuário anterior. É vazamento real entre contas num computador
-compartilhado, e é uma linha.
-
-**O `FieldRenderer` é compartilhado** entre o preview do builder e a página
-pública. Um `switch` num arquivo só decide como cada tipo vira componente MUI —
-se houvesse duas cópias, o preview acabaria mentindo sobre o formulário real.
-
-**O array de campos do builder é estado local, não estado de servidor.** O
-usuário reordena, renomeia e remove livremente, e só ao clicar em salvar isso
-vira uma requisição. É a contraparte do `PUT` da lista inteira no backend.
-
-**Reordenação por setas ↑ ↓, não drag-and-drop.** Previsível, acessível por
-teclado, e sem arrastar uma biblioteca inteira para dentro do bundle.
-
-**Nada de `dangerouslySetInnerHTML` no projeto.** Tudo que passa por JSX sai
-como texto, não como HTML. O ponto sensível é a tela de respostas do admin, onde
-conteúdo de um visitante anônimo é renderizado dentro de uma sessão
-privilegiada: é ali que uma XSS armazenada morderia.
-
-**Erros renderizados de forma genérica.** A tela mostra a mensagem tratada do
-envelope de erro da API, nunca o payload cru — nada de stack trace ou detalhe
-de banco.
-
-**Nenhum segredo no bundle.** Toda variável `VITE_*` é embutida no JavaScript e
-é pública. Não existe nenhuma no projeto: a URL da API é relativa (`/api/v1`) e
-o proxy do Vite resolve o resto.
 
 ---
 
 ## Decisões de arquitetura
 
-Registradas aqui conforme são tomadas, com o porquê e a alternativa descartada.
-
-**Spec-first, com o contrato virando tipo nos dois lados.** Detalhado acima. É
-a decisão central do projeto.
-
-**`main` só resolve sinais do sistema operacional.** O pacote `main` não pode
-ser importado por ninguém, então lógica que cai lá é lógica que não tem como
-ser testada. `cmd/server/main.go` traduz SIGINT/SIGTERM em cancelamento de
-contexto e delega para `internal/cli`.
-
-**`internal/` é intencional.** Nada fora do módulo consegue importar as camadas
-internas — é o compilador garantindo a fronteira, não convenção de nome de
-pasta.
-
-**Timeouts explícitos no `http.Server`.** O zero value de `http.Server` em Go
-não tem timeout nenhum: uma conexão que envia o cabeçalho byte a byte segura
-uma goroutine para sempre (Slowloris). São quatro linhas que a maioria dos
-projetos Go esquece, e por isso entraram no esqueleto e não "depois".
-
-**Desligamento gracioso.** Ctrl+C termina as requisições em andamento antes de
-fechar, para não cortar uma submissão no meio da transação.
-
-**Cabeçalhos de segurança em toda resposta:** `X-Content-Type-Options: nosniff`,
-`X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
-
-**A spec é servida pelo próprio binário** em `/openapi.json`, embutida em tempo
-de geração. Garante que a especificação publicada é exatamente a que gerou
-aquele executável.
+- **Spec-first.** O `openapi.yaml` é escrito à mão e gera os dois lados. Com o
+  *strict server* do `oapi-codegen`, handler fora do contrato não compila.
+- **SQLite via driver em Go puro**, para rodar igual em Windows, macOS e Linux
+  sem Docker nem toolchain C. Os repositórios estão atrás de interfaces, então
+  trocar de banco fica contido numa camada.
+- **Sessão em JWT dentro de cookie `HttpOnly`**, inacessível ao JavaScript.
+  Dispensa tabela de sessão; em troca, não tem revogação.
+- **Autorização na assinatura do repositório.** Não existe `GetForm(id)`, só
+  `GetOwnedBy(id, ownerID)` — não dá para esquecer a checagem de dono porque
+  não dá para chamar o método sem ele.
+- **`PUT` na lista inteira de campos**, em vez de CRUD por campo: o builder é
+  uma unidade de edição, e o array recebido é a verdade.
+- **Estrutura travada após publicar**, para não invalidar respostas já
+  recebidas.
+- **O rótulo do campo é copiado para a resposta** no momento do envio, então
+  renomear uma pergunta depois não reescreve o passado.
+- **Validação de submissão isolada**, sem dependência de HTTP ou banco. É o
+  único pacote com suíte de testes.
+- **Proxy do Vite em desenvolvimento**, então navegador e API são a mesma
+  origem e não existe CORS.
 
 ---
 
-## Estrutura
+## Limitações conhecidas
 
-```
-.
-├── Taskfile.yml                  # entrypoint único de DX
-├── api/
-│   └── openapi.yaml              # ← FONTE DA VERDADE
-├── backend/
-│   ├── config.example.yaml
-│   ├── oapi-codegen.yaml
-│   ├── cmd/server/main.go        # só sinais; delega para internal/cli
-│   └── internal/
-│       ├── cli/                  # cobra: root, run
-│       ├── config/               # viper: default → arquivo → env → flag
-│       └── httpapi/
-│           ├── gen/              # ← GERADO, versionado
-│           ├── api.go            # implementa a interface gerada
-│           ├── router.go
-│           ├── middleware.go
-│           └── server.go
-└── frontend/
-    ├── openapi-ts.config.ts
-    ├── vite.config.ts            # proxy /api → :8080
-    └── src/
-        ├── api/gen/              # ← GERADO, versionado
-        ├── main.tsx
-        └── App.tsx
-```
+Tudo que o desafio pede está implementado. O que segue são limites de escopo,
+assumidos conscientemente:
+
+- **Sessão sem revogação.** O logout apaga o cookie do navegador, mas o token
+  continua válido até expirar. Sessão em banco seria o próximo passo.
+- **Editar um formulário publicado exige despublicá-lo**, e o link fica fora do
+  ar nesse intervalo. A solução completa é versionar a definição, com cada
+  resposta apontando para a versão que o visitante viu.
+- **Sem rate limiting** nos endpoints de autenticação nem no endpoint público.
+  Um limiter em memória sumiria no restart e não valeria com múltiplas
+  instâncias; o passo real é Redis.
+- **SQLite aceita um escritor por vez.** Suficiente aqui, mas escala apenas
+  verticalmente.
+- **Respostas armazenadas como texto.** Agregação numérica exigiria CAST.
+- **Sem exportação CSV** das respostas.
+- **Sem paginação na lista de formulários** (as respostas paginam).
+- **Testes concentrados no validador.** Sem testes de integração HTTP e sem
+  testes de frontend.
+- **Sem verificação de e-mail no cadastro e sem recuperação de senha.**
+- **Faltam tipos de campo**: upload de arquivo, múltipla escolha e lógica
+  condicional entre campos.
+- **Sem CAPTCHA** no envio público.
+- **Bundle do frontend sem code splitting**, e sem Content-Security-Policy
+  completa.

@@ -39,8 +39,7 @@ func newRunCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			// Migration no boot: um clone limpo sobe sem passo manual, que é o
-			// que o desafio pede ("iniciar seguindo apenas o README").
+			// Migration no boot para um clone limpo subir sem passo manual.
 			if err := sqlite.Migrate(db); err != nil {
 				return err
 			}
@@ -50,8 +49,6 @@ func newRunCmd() *cobra.Command {
 			}
 			logger.Info("banco pronto", "path", cfg.Database.Path, "migration", version)
 
-			// A montagem das dependências acontece aqui, num lugar só: o
-			// repositório concreto entra na interface que o serviço declarou.
 			authSvc := auth.NewService(
 				sqlite.NewUserRepo(db),
 				auth.NewTokenIssuer(cfg.Auth.JWTSecret, cfg.Auth.SessionTTL),
@@ -61,8 +58,6 @@ func newRunCmd() *cobra.Command {
 
 			publicSvc := forms.NewPublicService(sqlite.NewSubmissionRepo(db))
 
-			// Sem credenciais, googleAuth é nil e /auth/google responde 501.
-			// O servidor sobe e o resto do app continua íntegro.
 			googleAuth := auth.NewGoogleAuth(
 				cfg.Auth.Google.ClientID,
 				cfg.Auth.Google.ClientSecret,

@@ -38,8 +38,7 @@ export default function PublicFormPage() {
     )
   }
 
-  // Formulário inexistente e formulário em rascunho respondem 404 igualmente,
-  // então a tela é a mesma — e não diz qual dos dois é.
+  // Inexistente e rascunho respondem 404 igualmente.
   if (error || !form) {
     return (
       <Container maxWidth="sm" sx={{ mt: 12 }}>
@@ -68,13 +67,13 @@ export default function PublicFormPage() {
     )
   }
 
+  // Os erros por campo vêm do 422 do backend, indexados por field_id.
   const erros = errosPorCampo(enviar.error)
   const total = form.fields.length
 
   return (
     <Container maxWidth="sm" sx={{ py: { xs: 5, sm: 9 } }}>
-      {/* Cabeçalho tratado como o de um documento: fio, título denso, e a
-          contagem de perguntas em mono — quem abre um formulário quer saber
+      {/* A contagem vem antes do título: quem abre um formulário quer saber
           de cara o quanto vai levar. */}
       <Box sx={{ borderTop: `2px solid ${cores.tinta}`, pt: 2.5, mb: 5 }}>
         <Typography
@@ -117,10 +116,8 @@ export default function PublicFormPage() {
       >
         <Stack spacing={4}>
           {form.fields.map((f, i) => (
-            // A numeração é justificada: as perguntas de um formulário são
-            // uma sequência de verdade, e a ordem é informação que a pessoa
-            // usa para se localizar. O número mora na margem, fora do fluxo
-            // de leitura, e some no celular.
+            // O número mora na margem, fora do fluxo de leitura, e some no
+            // celular.
             <Stack key={f.id} direction="row" spacing={2.5}>
               <Typography
                 aria-hidden
@@ -149,7 +146,6 @@ export default function PublicFormPage() {
             </Stack>
           ))}
 
-          {/* O erro diz o que aconteceu e o que fazer, sem se desculpar. */}
           {Object.keys(erros).length > 0 && (
             <Alert severity="error">
               {Object.keys(erros).length} campo

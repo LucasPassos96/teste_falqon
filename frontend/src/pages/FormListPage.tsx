@@ -87,7 +87,6 @@ export default function FormListPage() {
         </Button>
       </Stack>
 
-      {/* Tela vazia é um convite para agir, não um aviso de ausência. */}
       {formularios.length === 0 && (
         <Card sx={{ borderStyle: 'dashed', borderColor: cores.grafite }}>
           <CardContent sx={{ py: 6, textAlign: 'center' }}>
@@ -164,8 +163,7 @@ function CartaoFormulario({ form, onRemover }: { form: Form; onRemover: () => vo
   return (
     <Card
       sx={{
-        // Rascunho recebe borda tracejada: ainda é uma coisa em aberto. É a
-        // mesma informação do rótulo, dita pela forma.
+        // Tracejado: a mesma informação do rótulo, dita pela forma.
         borderStyle: publicado ? 'solid' : 'dashed',
         borderColor: publicado ? cores.fio : '#C9CFD8',
         transition: 'border-color 120ms ease',
@@ -201,7 +199,6 @@ function CartaoFormulario({ form, onRemover }: { form: Form; onRemover: () => vo
               </Typography>
             )}
 
-            {/* Números em mono: são valores que se confere, não prosa. */}
             <Typography
               sx={{ fontFamily: mono, fontSize: 12.5, color: cores.tintaFraca, letterSpacing: 0 }}
             >
@@ -223,8 +220,6 @@ function CartaoFormulario({ form, onRemover }: { form: Form; onRemover: () => vo
                   sx={{
                     fontFamily: mono,
                     fontSize: 12.5,
-                    // O segundo e último lugar onde o violeta aparece: o link
-                    // é a razão de o formulário ter sido publicado.
                     color: cores.carimbo,
                     bgcolor: cores.carimboFraco,
                     px: 1,
